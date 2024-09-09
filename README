@@ -1,0 +1,4 @@
+This repo contains the a bitslice impl in C, high level Verilog combinatorial Circuit and a corresponding C file for 64 bit tower field multiplication thats used in the binius protocol.
+
+It has 729 AND Gates and 3626 XOR gates which probably need a lot of improvement. I am not a circuit designer....
+
