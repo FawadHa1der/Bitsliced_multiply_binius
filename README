@@ -2,3 +2,5 @@ This repo contains the a bitslice impl in C, high level Verilog combinatorial Ci
 
 It has 729 AND Gates and 3626 XOR gates which probably need a lot of improvement. I am not a circuit designer....
 
+
+This is a WIP. Test for verilog and C will be added soon
