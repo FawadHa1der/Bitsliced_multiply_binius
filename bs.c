@@ -1,6 +1,5 @@
 
 
-//Copyright 2024 Fawad Haider
 #include <string.h>
 #include "bs.h"
 // #include <arm_neon.h>

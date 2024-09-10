@@ -1,4 +1,3 @@
-//Copyright 2024 Fawad Haider
 
 #ifndef _BS_H_
 #define _BS_H_
