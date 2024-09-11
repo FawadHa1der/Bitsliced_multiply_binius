@@ -60,11 +60,11 @@ int main() {
     
 
     // 64 bit numbers
-    uint64_t v1 = 14143994781733811022ULL;  // Example 64-bit number
-    uint64_t v2 = 15875069739565888632ULL;  // Example 64-bit number
+    // uint64_t v1 = 14143994781733811022ULL;  // Example 64-bit number
+    // uint64_t v2 = 15875069739565888632ULL;  // Example 64-bit number
 
-    printf("Input v1 %016llx \n: ", v1);
-    printf("Input v2 %016llx \n: ", v2);
+    // printf("Input v1 %016llx \n: ", v1);
+    // printf("Input v2 %016llx \n: ", v2);
     clock_t start = clock();
     uint64_t result = 0;
     for (int i = 0; i < 128; i++) {
@@ -75,8 +75,8 @@ int main() {
     clock_t end = clock();
     printf("Time taken: %f seconds\n", ((double)(end - start)) / CLOCKS_PER_SEC);
 
-    printf("C Result: ");
-    printf("%016llx\n ", result);
+    // printf("C Result: ");
+    // printf("%016llx\n ", result);
     // uint128_t combined_result = {result.low, result.high};
     // printf("Combined Result: ");
     // printf("%016llx%016llx", combined_result.high, combined_result.low);
