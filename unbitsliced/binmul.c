@@ -27,7 +27,7 @@ uint64_t binmul64(uint64_t v1, uint64_t v2, uint32_t length, bool is_constant) {
     L2 = v2 & halfmask;
     R2 = v2 >> halflen;
 
-    if (L1 == 0 && R1 == 1 && is_constant == true) {
+    if (L1 == 0 && R1 == 1) {
         uint64_t outR_input = 1ULL << quarterlen;
         uint64_t outR = binmul64(outR_input,  R2, halflen, true);
         outR ^= L2;
@@ -67,7 +67,9 @@ int main() {
     printf("Input v2 %016llx \n: ", v2);
     clock_t start = clock();
     uint64_t result = 0;
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < 128; i++) {
+        uint64_t v1 = i;  // Example 64-bit number
+        uint64_t v2 = i+1;  // Example 64-bit number
         result = binmul64(v1, v2, 64, false);
     }
     clock_t end = clock();
@@ -79,6 +81,6 @@ int main() {
     // printf("Combined Result: ");
     // printf("%016llx%016llx", combined_result.high, combined_result.low);
     printf("\n");
-    printf("Calls: %d\n", calls);
+    // printf("Calls: %d\n", calls);
     return 0;
 }

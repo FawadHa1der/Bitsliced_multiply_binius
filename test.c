@@ -13,14 +13,14 @@ int main() {
     word_t y[128] = {0};
     word_t z[128] = {0};
     for (int i = 0; i < 128; i++) {
-        x[i] = 0xc4499050de38f34e;
-        y[i] = 0xdc4f93d18360b478;
+        x[i] = i;
+        y[i] = i+3;
     }
     clock_t start = clock();
     bs_transpose(x, 1);
     bs_transpose(y, 1);
     bs_multiply_64(x, y, z);
-    // bs_multiply_64(&x[WORD_SIZE], &y[WORD_SIZE], &z[WORD_SIZE]);
+    bs_multiply_64(&x[64], &y[64], &z[64]);
     bs_transpose_rev(z, 1);
     clock_t end = clock();
 
@@ -28,9 +28,9 @@ int main() {
     printf("Time taken: %f seconds\n", time_taken);
 
 
-    for (int i = 0; i < 128; i++) {
-        printf("%016llx ", z[i]);
-    }
+    // for (int i = 0; i < 64; i++) {
+    //     printf("%016llx ", z[i]);
+    // }
 
     return 0;
 }
