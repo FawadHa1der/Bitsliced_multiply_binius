@@ -23,6 +23,49 @@ void bs_transpose(word_t * blocks, word_t width_to_adjacent_block)
 }
 
 
+//////////////////////////////////////////////////////
+// Byte Slicing: Convert 8 x 128-bit inputs to 16 rows of 64 bits
+//////////////////////////////////////////////////////
+void byte_slice(uint128_t input[NUM_INPUTS], uint64_t output[SLICED_OUTPUTS]) {
+    // Cast the input to uint8_t* for easier access to bytes
+    uint8_t* input_bytes = (uint8_t*) input;
+    uint8_t* output_bytes = (uint8_t*) output;
+
+    // Loop over each byte index (0 to 15 for each 128-bit number)
+    for (int byte_index = 0; byte_index < BYTES_IN_128BIT; byte_index++) {
+        // Loop over each of the original 128-bit numbers (8 total inputs)
+        for (int i = 0; i < NUM_INPUTS; i++) {
+            // Place each byte from the input array into the corresponding 64-bit output row
+            // the print the index being accesses
+            int index_to = byte_index * NUM_INPUTS + i;
+        //    printf("index to: %d\n", index_to);
+            int index_from = i * BYTES_IN_128BIT + byte_index;
+          //  printf("index from: %d\n", index_from);
+            output_bytes[byte_index * NUM_INPUTS + i] = input_bytes[i * BYTES_IN_128BIT + byte_index];
+        }
+    }
+}
+
+//////////////////////////////////////////////////////
+// Un-byte Slicing: Convert 16 rows of 64 bits back to 8 x 128-bit inputs
+//////////////////////////////////////////////////////
+void un_byte_slice(uint64_t input[SLICED_OUTPUTS], uint128_t output[NUM_INPUTS]) {
+    // Cast the input to uint8_t* for easier access to bytes
+    uint8_t* input_bytes = (uint8_t*) input;
+    uint8_t* output_bytes = (uint8_t*) output;
+
+    // Loop over each byte index (0 to 15 for each 128-bit number)
+    for (int byte_index = 0; byte_index < BYTES_IN_128BIT; byte_index++) {
+        // Loop over each of the 8 128-bit numbers
+        for (int i = 0; i < NUM_INPUTS; i++) {
+            // Reconstruct the original bytes into the 128-bit numbers
+            output_bytes[i * BYTES_IN_128BIT + byte_index] = input_bytes[byte_index * NUM_INPUTS + i];
+        }
+    }
+}
+
+
+
 // since all the input is sequential we need to find the next block from the adjacent data block in the sequetial input. 
 // for example if every data point is onnly one block deep. then width_to_adjacent_block = 1. if every data point is 2 blocks deep then width_to_adjacent_block = 2.
 void bs_transpose_dst(word_t * transpose, word_t * blocks, word_t width_to_adjacent_block)
