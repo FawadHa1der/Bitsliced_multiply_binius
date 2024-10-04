@@ -50,16 +50,17 @@ void bs_transpose(word_t * blocks, word_t width_to_adjacent_block);
 void bs_transpose_rev(word_t * blocks, word_t width_to_adjacent_block);
 void bs_transpose_dst(word_t * transpose, word_t * blocks, word_t width_to_adjacent_block);
 
-#define NUM_INPUTS 8        // Number of 128-bit numbers
-#define BYTES_IN_128BIT 16   // 16 bytes in a 128-bit number
-#define SLICED_OUTPUTS 16
 // Assuming uint128_t is represented as two uint64_t for low and high parts
 typedef struct {
     uint64_t low;
     uint64_t high;
 } uint128_t;
 
-void byte_slice(uint128_t input[NUM_INPUTS], uint64_t output[SLICED_OUTPUTS]);
-void un_byte_slice(uint64_t input[SLICED_OUTPUTS], uint128_t output[NUM_INPUTS]);
+void byte_slice(uint128_t *input, uint64_t *output);
+void un_byte_slice(uint64_t* input, uint128_t *output);
+void multiply_64b_using_log_table(
+    uint64_t *lhs, uint64_t *rhs, uint64_t* result);
+void multiply_constant_64b_using_log_table(
+     uint64_t *rhs, uint64_t* result) ;
 
 #endif

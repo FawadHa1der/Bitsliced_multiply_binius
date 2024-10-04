@@ -15,7 +15,7 @@ OUTPUT = bitsliced
 LIBRARY = libbitsliced.a
 
 # Source files (excluding test.c for static lib)
-SOURCES = bs_multiply_64.c bs.c bs_multiply_128.c polynomial_byte_sliced_mul_16.c
+SOURCES = bs_multiply_64.c bs.c bs_multiply_128.c polynomial_byte_sliced_mul_16.c polynomial_byte_slice_mul_2.c
 
 # Add test.c to SOURCES if not building static library
 ifeq ($(STATIC),)
@@ -26,7 +26,7 @@ endif
 OBJECTS = $(SOURCES:.c=.o)
 
 # Header files
-HEADERS = bs_multiply_64.h bs.h bs_multiply_128.h polynomial_byte_sliced_mul_16.h
+HEADERS = bs_multiply_64.h bs.h bs_multiply_128.h polynomial_byte_sliced_mul_16.h polynomial_byte_slice_mul_2.h
 
 # Build all
 all: $(OUTPUT)

@@ -5,97 +5,20 @@
 #include "polynomial_byte_sliced_mul_16.h"
 void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z);
 
-uint8_t multiply_8b_using_log_table(
-    uint8_t lhs, uint8_t rhs,
-    const uint8_t log_table[256],
-    const uint8_t exp_table[256]
-);
 
-// Wrapper function for uint64_t inputs
-uint64_t multiply_64b_using_log_table(
-    uint64_t *lhs, uint64_t *rhs, uint64_t* result) {
-
-    uint8_t *lhs_bytes = (uint8_t *)lhs;
-    uint8_t *rhs_bytes = (uint8_t *)rhs;
-    uint8_t *result_bytes = (uint8_t *)result;
-const uint8_t EXP_TABLE[256] = {
-    0x1,  0x13, 0x43, 0x66, 0xab, 0x8c, 0x60, 0xc6, 0x91, 0xca, 0x59, 0xb2, 0x6a, 0x63, 0xf4, 0x53,
-    0x17, 0x0f, 0xfa, 0xba, 0xee, 0x87, 0xd6, 0xe0, 0x6e, 0x2f, 0x68, 0x42, 0x75, 0xe8, 0xea, 0xcb,
-    0x4a, 0xf1, 0x0c, 0xc8, 0x78, 0x33, 0xd1, 0x9e, 0x30, 0xe3, 0x5c, 0xed, 0xb5, 0x14, 0x3d, 0x38,
-    0x67, 0xb8, 0xcf, 0x06, 0x6d, 0x1d, 0xaa, 0x9f, 0x23, 0xa0, 0x3a, 0x46, 0x39, 0x74, 0xfb, 0xa9,
-    0xad, 0xe1, 0x7d, 0x6c, 0x0e, 0xe9, 0xf9, 0x88, 0x2c, 0x5a, 0x80, 0xa8, 0xbe, 0xa2, 0x1b, 0xc7,
-    0x82, 0x89, 0x3f, 0x19, 0xe6, 0x03, 0x32, 0xc2, 0xdd, 0x56, 0x48, 0xd0, 0x8d, 0x73, 0x85, 0xf7,
-    0x61, 0xd5, 0xd2, 0xac, 0xf2, 0x3e, 0x0a, 0xa5, 0x65, 0x99, 0x4e, 0xbd, 0x90, 0xd9, 0x1a, 0xd4,
-    0xc1, 0xef, 0x94, 0x95, 0x86, 0xc5, 0xa3, 0x08, 0x84, 0xe4, 0x22, 0xb3, 0x79, 0x20, 0x92, 0xf8,
-    0x9b, 0x6f, 0x3c, 0x2b, 0x24, 0xde, 0x64, 0x8a, 0xd,  0xdb, 0x3b, 0x55, 0x7a, 0x12, 0x50, 0x25,
-    0xcd, 0x27, 0xec, 0xa6, 0x57, 0x5b, 0x93, 0xeb, 0xd8, 0x09, 0x97, 0xa7, 0x44, 0x18, 0xf5, 0x40,
-    0x54, 0x69, 0x51, 0x36, 0x8e, 0x41, 0x47, 0x2a, 0x37, 0x9d, 0x02, 0x21, 0x81, 0xbb, 0xfd, 0xc4,
-    0xb0, 0x4b, 0xe2, 0x4f, 0xae, 0xd3, 0xbf, 0xb1, 0x58, 0xa1, 0x29, 0x05, 0x5f, 0xdf, 0x77, 0xc9,
-    0x6b, 0x70, 0xb7, 0x35, 0xbc, 0x83, 0x9a, 0x7c, 0x7f, 0x4d, 0x8f, 0x52, 0x04, 0x4c, 0x9c, 0x11,
-    0x62, 0xe7, 0x10, 0x71, 0xa4, 0x76, 0xda, 0x28, 0x16, 0x1c, 0xb9, 0xdc, 0x45, 0x0b, 0xb6, 0x26,
-    0xff, 0xe5, 0x31, 0xf0, 0x1f, 0x8b, 0x1e, 0x98, 0x5d, 0xfe, 0xf6, 0x72, 0x96, 0xb4, 0x07, 0x7e,
-    0x5e, 0xcc, 0x34, 0xaf, 0xc0, 0xfc, 0xd7, 0xf3, 0x2d, 0x49, 0xc3, 0xce, 0x15, 0x2e, 0x7b, 0x00,
-};
-
-const uint8_t LOG_TABLE[256] = {
-    0x00, 0x00, 0xaa, 0x55, 0xcc, 0xbb, 0x33, 0xee, 0x77, 0x99, 0x66, 0xdd, 0x22, 0x88, 0x44, 0x11,
-    0xd2, 0xcf, 0x8d, 0x01, 0x2d, 0xfc, 0xd8, 0x10, 0x9d, 0x53, 0x6e, 0x4e, 0xd9, 0x35, 0xe6, 0xe4,
-    0x7d, 0xab, 0x7a, 0x38, 0x84, 0x8f, 0xdf, 0x91, 0xd7, 0xba, 0xa7, 0x83, 0x48, 0xf8, 0xfd, 0x19,
-    0x28, 0xe2, 0x56, 0x25, 0xf2, 0xc3, 0xa3, 0xa8, 0x2f, 0x3c, 0x3a, 0x8a, 0x82, 0x2e, 0x65, 0x52,
-    0x9f, 0xa5, 0x1b, 0x02, 0x9c, 0xdc, 0x3b, 0xa6, 0x5a, 0xf9, 0x20, 0xb1, 0xcd, 0xc9, 0x6a, 0xb3,
-    0x8e, 0xa2, 0xcb, 0x0f, 0xa0, 0x8b, 0x59, 0x94, 0xb8, 0x0a, 0x49, 0x95, 0x2a, 0xe8, 0xf0, 0xbc,
-    0x06, 0x60, 0xd0, 0x0d, 0x86, 0x68, 0x03, 0x30, 0x1a, 0xa1, 0x0c, 0xc0, 0x43, 0x34, 0x18, 0x81,
-    0xc1, 0xd3, 0xeb, 0x5d, 0x3d, 0x1c, 0xd5, 0xbe, 0x24, 0x7c, 0x8c, 0xfe, 0xc7, 0x42, 0xef, 0xc8,
-    0x4a, 0xac, 0x50, 0xc5, 0x78, 0x5e, 0x74, 0x15, 0x47, 0x51, 0x87, 0xe5, 0x05, 0x5c, 0xa4, 0xca,
-    0x6c, 0x08, 0x7e, 0x96, 0x72, 0x73, 0xec, 0x9a, 0xe7, 0x69, 0xc6, 0x80, 0xce, 0xa9, 0x27, 0x37,
-    0x39, 0xb9, 0x4d, 0x76, 0xd4, 0x67, 0x93, 0x9b, 0x4b, 0x3f, 0x36, 0x04, 0x63, 0x40, 0xb4, 0xf3,
-    0xb0, 0xb7, 0x0b, 0x7b, 0xed, 0x2c, 0xde, 0xc2, 0x31, 0xda, 0x13, 0xad, 0xc4, 0x6b, 0x4c, 0xb6,
-    0xf4, 0x70, 0x57, 0xfa, 0xaf, 0x75, 0x07, 0x4f, 0x23, 0xbf, 0x09, 0x1f, 0xf1, 0x90, 0xfb, 0x32,
-    0x5b, 0x26, 0x62, 0xb5, 0x6f, 0x61, 0x16, 0xf6, 0x98, 0x6d, 0xd6, 0x89, 0xdb, 0x58, 0x85, 0xbd,
-    0x17, 0x41, 0xb2, 0x29, 0x79, 0xe1, 0x54, 0xd1, 0x1d, 0x45, 0x1e, 0x97, 0x92, 0x2b, 0x14, 0x71,
-    0xe3, 0x21, 0x64, 0xf7, 0x0e, 0x9e, 0xea, 0x5f, 0x7f, 0x46, 0x12, 0x3e, 0xf5, 0xae, 0xe9, 0xe0,
-};
-    
-    // Loop through each byte of lhs and rhs
-    for (int i = 0; i < 8; i++) {
-        // Extract each byte using bit shifting and masking
-        
-        // Multiply the bytes using the multiply_8b_using_log_table function
-        result_bytes[i] = multiply_8b_using_log_table(lhs_bytes[i], rhs_bytes[i], LOG_TABLE, EXP_TABLE);
-        
-        // // Combine the result back into a uint64_t
-        // result_bytes |= ((uint64_t)byte_result << (i * 8));
-    }
-
-}
-
-uint8_t multiply_8b_using_log_table(
-    uint8_t lhs, uint8_t rhs,
-    const uint8_t log_table[256],
-    const uint8_t exp_table[256]
-) {
-    uint8_t result = 0;
-    
-    if (lhs != 0 && rhs != 0) {
-        size_t log_table_index = log_table[lhs] + log_table[rhs];
-
-        if (log_table_index > 254) {
-            log_table_index -= 255;
-        }
-
-        result = exp_table[log_table_index];
-    }
-
-    return result;
-}
 void byte_slice_transpose_mul_128(uint128_t x[8], uint128_t y[8], uint128_t* z){
-    uint64_t x_transposed[16];
+    uint64_t x_transposed[16], test_x_transposed[16];
     uint64_t y_transposed[16];
     uint64_t z_transposed[16];
     
     byte_slice(x, x_transposed);
+    un_byte_slice(x_transposed, test_x_transposed);
+    uint64_t *test_x = x;
+    // test both are equal
+    for (int i = 0; i < 16; i++) {
+        assert(test_x[i] == test_x_transposed[i]);
+    }
     byte_slice(y, y_transposed);
-
     byte_slice_mul_128((uint64_t*)x_transposed, (uint64_t*)y_transposed, (uint64_t*)z_transposed);
     un_byte_slice(z_transposed, z);
 
@@ -535,46 +458,46 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   uint64_t n462;
   uint64_t n463;
 // n205 = x[15] & y[15];
-multiply_64b_using_log_table(&x[15], &y[15], &n205);
+multiply_64b_using_log_table(&x[15], &y[15], &n205); // done
 //n204 = x[14] & y[14];
 multiply_64b_using_log_table(&x[14], &y[14], &n204);
 n209 = n205 ^ n204;
 //n197 = x[13] & y[13];
-multiply_64b_using_log_table(&x[13], &y[13], &n197);
+multiply_64b_using_log_table(&x[13], &y[13], &n197);// done
 //n196 = x[12] & y[12];
 multiply_64b_using_log_table(&x[12], &y[12], &n196);
 n201 = n197 ^ n196;
 n225 = n209 ^ n201;
 //n170 = x[11] & y[11];
-multiply_64b_using_log_table(&x[11], &y[11], &n170);
+multiply_64b_using_log_table(&x[11], &y[11], &n170);// done
 //n169 = x[10] & y[10];
 multiply_64b_using_log_table(&x[10], &y[10], &n169);
 n174 = n170 ^ n169;
 //n162 = x[9] & y[9];
-multiply_64b_using_log_table(&x[9], &y[9], &n162);
+multiply_64b_using_log_table(&x[9], &y[9], &n162); // done
 //n161 = x[8] & y[8];
 multiply_64b_using_log_table(&x[8], &y[8], &n161);
 n166 = n162 ^ n161;
 n190 = n174 ^ n166;
 n277 = n225 ^ n190;
 //n77 = x[7] & y[7];
-multiply_64b_using_log_table(&x[7], &y[7], &n77);
+multiply_64b_using_log_table(&x[7], &y[7], &n77); // done
 //n76 = x[6] & y[6];
 multiply_64b_using_log_table(&x[6], &y[6], &n76);
 n81 = n77 ^ n76;
 //n69 = x[5] & y[5];
-multiply_64b_using_log_table(&x[5], &y[5], &n69);
+multiply_64b_using_log_table(&x[5], &y[5], &n69); // done
 //n68 = x[4] & y[4];
 multiply_64b_using_log_table(&x[4], &y[4], &n68);
 n73 = n69 ^ n68;
 n97 = n81 ^ n73;
 //n42 = x[3] & y[3];
-multiply_64b_using_log_table(&x[3], &y[3], &n42);
+multiply_64b_using_log_table(&x[3], &y[3], &n42); // done
 //n41 = x[2] & y[2];
 multiply_64b_using_log_table(&x[2], &y[2], &n41);
 n46 = n42 ^ n41;
 //n34 = x[1] & y[1];
-multiply_64b_using_log_table(&x[1], &y[1], &n34);
+multiply_64b_using_log_table(&x[1], &y[1], &n34); //done
 //n33 = x[0] & y[0];
 multiply_64b_using_log_table(&x[0], &y[0], &n33);
 n38 = n34 ^ n33;
@@ -586,26 +509,34 @@ n207 = y[15] ^ y[14];
 //n208 = n206 & n207;
 multiply_64b_using_log_table(&n206, &n207, &n208);
 n210 = n209 ^ n208;
-n211 = n210 ^ n205;
+uint64_t high_205;
+multiply_constant_64b_using_log_table(&n205, &high_205);
+n211 = n210 ^ high_205;
 n198 = x[13] ^ x[12];
 n199 = y[13] ^ y[12];
 //n200 = n198 & n199;
 multiply_64b_using_log_table(&n198, &n199, &n200);
 n202 = n201 ^ n200;
-n203 = n202 ^ n197;
+uint64_t high_197;
+multiply_constant_64b_using_log_table(&n197, &high_197);
+n203 = n202 ^ high_197;
 n226 = n211 ^ n203;
 n171 = x[11] ^ x[10];
 n172 = y[11] ^ y[10];
 //n173 = n171 & n172;
 multiply_64b_using_log_table(&n171, &n172, &n173);
 n175 = n174 ^ n173;
-n176 = n175 ^ n170;
+uint64_t high_170;
+multiply_constant_64b_using_log_table(&n170, &high_170);
+n176 = n175 ^ high_170;
 n163 = x[9] ^ x[8];
 n164 = y[9] ^ y[8];
 //n165 = n163 & n164;
 multiply_64b_using_log_table(&n163, &n164, &n165);
 n167 = n166 ^ n165;
-n168 = n167 ^ n162;
+uint64_t high_162;
+multiply_constant_64b_using_log_table(&n162, &high_162);
+n168 = n167 ^ high_162;
 n191 = n176 ^ n168;
 n278 = n226 ^ n191;
 n78 = x[7] ^ x[6];
@@ -613,26 +544,34 @@ n79 = y[7] ^ y[6];
 //n80 = n78 & n79;
 multiply_64b_using_log_table(&n78, &n79, &n80);
 n82 = n81 ^ n80;
-n83 = n82 ^ n77;
+uint64_t high_77;
+multiply_constant_64b_using_log_table(&n77, &high_77);
+n83 = n82 ^ high_77;
 n70 = x[5] ^ x[4];
 n71 = y[5] ^ y[4];
 //n72 = n70 & n71;
 multiply_64b_using_log_table(&n70, &n71, &n72);
 n74 = n73 ^ n72;
-n75 = n74 ^ n69;
+uint64_t high_69;
+multiply_constant_64b_using_log_table(&n69, &high_69);
+n75 = n74 ^ high_69 ;
 n98 = n83 ^ n75;
 n43 = x[3] ^ x[2];
 n44 = y[3] ^ y[2];
 //n45 = n43 & n44;
 multiply_64b_using_log_table(&n43, &n44, &n45);
 n47 = n46 ^ n45;
-n48 = n47 ^ n42;
+uint64_t high_42;
+multiply_constant_64b_using_log_table(&n42, &high_42);
+n48 = n47 ^ high_42;
 n35 = x[1] ^ x[0];
 n36 = y[1] ^ y[0];
 //n37 = n35 & n36;
 multiply_64b_using_log_table(&n35, &n36, &n37);
 n39 = n38 ^ n37;
-n40 = n39 ^ n34;
+uint64_t high_34;
+multiply_constant_64b_using_log_table(&n34, &high_34);
+n40 = n39 ^ high_34;
 n63 = n48 ^ n40;
 n150 = n98 ^ n63;
 n441 = n278 ^ n150;
@@ -1046,20 +985,20 @@ n305 = n288 ^ n286;
 n307 = n305 ^ n284;
 n311 = n307 ^ n280;
 n463 = n462 ^ n311;
-  z[0] = n440;
-  z[1] = n441;
-  z[2] = n442;
-  z[3] = n443;
-  z[4] = n444;
-  z[5] = n445;
-  z[6] = n446;
-  z[7] = n447;
-  z[8] = n449;
-  z[9] = n451;
-  z[10] = n453;
-  z[11] = n455;
-  z[12] = n457;
-  z[13] = n459;
-  z[14] = n461;
-  z[15] = n463;
+z[0] = n440;
+z[1] = n441;
+z[2] = n442;
+z[3] = n443;
+z[4] = n444;
+z[5] = n445;
+z[6] = n446;
+z[7] = n447;
+z[8] = n449;
+z[9] = n451;
+z[10] = n453;
+z[11] = n455;
+z[12] = n457;
+z[13] = n459;
+z[14] = n461;
+z[15] = n463;
 }
