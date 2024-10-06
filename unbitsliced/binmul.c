@@ -62,7 +62,7 @@ uint8_t multiply_8b_using_log_table(
 
         result = exp_table[log_table_index];
     }
-        printf("table look up lhs: %d, rhs: %d, result :%d  \n", lhs, rhs, result);
+       // printf("table look up lhs: %d, rhs: %d, result :%d  \n", lhs, rhs, result);
 
     return result;
 }
@@ -138,8 +138,8 @@ uint128_t binmul128(uint128_t v1, uint128_t v2, uint32_t length) {
         };
     }
 
-    printf("binmul128 result:  ");
-    printf("%016llx%016llx\n ", result.high, result.low);
+    // printf("binmul128 result:  ");
+    // printf("%016llx%016llx\n ", result.high, result.low);
 
     return result;
 }
@@ -196,10 +196,10 @@ uint64_t binmul64(uint64_t v1, uint64_t v2, uint32_t length, bool is_constant) {
     // print all the values for L1L2, R1R2, R1R2_high, Z3 in one line as hex
 
 
-    printf("L1L2: %04llx, R1R2: %04llx, R1R2_high: %04llx, Z3: %04llx\n", L1L2, R1R2, R1R2_high, Z3);
+    // printf("L1L2: %04llx, R1R2: %04llx, R1R2_high: %04llx, Z3: %04llx\n", L1L2, R1R2, R1R2_high, Z3);
     uint64_t upper_result =  (Z3 ^ L1L2 ^ R1R2 ^ R1R2_high) ;
 
-    printf("upper_result: %04llx\n", upper_result);
+    // printf("upper_result: %04llx\n", upper_result);
 
     uint64_t result = (uint64_t) L1L2 ^ R1R2 ^ ((upper_result) << halflen);
     return result;
@@ -229,10 +229,13 @@ void test_128(){
     // printf("Input v2 %016llx \n: ", v2);
     clock_t start = clock();
     uint128_t result = {0, 0};
-    for (int i = 0; i < 128; i++) {
+    for (int i = 0; i < 16; i++) {
         // uint64_t v1 = i;  // Example 64-bit number
         // uint64_t v2 = i+1;  // Example 64-bit number
+        v2.high += 1;
         result = binmul128(v1, v2, 128);
+        printf("Combined Result: %016llx%016llx \n", result.high, result.low);
+        // printf("", result.high, result.low);
     }
     clock_t end = clock();
     printf("Time taken: %f seconds\n", ((double)(end - start)) / CLOCKS_PER_SEC);
@@ -240,8 +243,6 @@ void test_128(){
     // printf("C Result: ");
     // printf("%016llx\n ", result);
     // uint128_t combined_result = {result.low, result.high};
-    // printf("Combined Result: ");
-    // printf("%016llx%016llx", combined_result.high, combined_result.low);
     printf("\n");
     // printf("Calls: %d\n", calls);
 }

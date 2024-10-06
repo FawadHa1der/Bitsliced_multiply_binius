@@ -13,19 +13,23 @@
 
 
 int test_128_byte_slice(){
-    uint128_t x[64] = {0};
-    uint128_t y[64] = {0};
+    uint128_t x[64] = {15143994781733811029ULL, 669260594276348690ULL};
+    uint128_t y[64] = {15875069739565888632ULL, 5354084802999887303ULL};
     uint128_t z[64] = {0};
 // 14143994781733811029ULL, 669260594276348690ULL
     for (int i = 0; i < 64; i++) {
         x[i].low = 15143994781733811029ULL;
         x[i].high = 669260594276348690ULL;
         y[i].low = 15875069739565888632ULL;
-        y[i].high = 5354084802999887303ULL;
+        y[i].high = 5354084802999887303ULL + i + 1;
     }
 
     uint64_t start = mach_absolute_time();
     byte_slice_transpose_mul_128(x, y, z);
+    byte_slice_transpose_mul_128(&x[8], &y[8], &z[8]);
+    byte_slice_transpose_mul_128(&x[16], &y[16], &z[16]);
+    byte_slice_transpose_mul_128(&x[24], &y[24], &z[24]);
+    byte_slice_transpose_mul_128(&x[32], &y[32], &z[32]);
     uint64_t end = mach_absolute_time();
 
     // Get the timebase info to convert to nanoseconds
@@ -38,7 +42,7 @@ int test_128_byte_slice(){
     // Convert nanoseconds to microseconds for display
     double time_taken = (double)elapsed / 1e3;
     printf("Time taken: %f microseconds (%llu nanoseconds)\n", time_taken, elapsed);
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 16; i++) {
         printf("z[%d] = %016llx%016llx\n", i, z[i].high, z[i].low);
     }
 

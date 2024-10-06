@@ -7,17 +7,17 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z);
 
 
 void byte_slice_transpose_mul_128(uint128_t x[8], uint128_t y[8], uint128_t* z){
-    uint64_t x_transposed[16], test_x_transposed[16];
+    uint64_t x_transposed[16]; 
     uint64_t y_transposed[16];
     uint64_t z_transposed[16];
     
     byte_slice(x, x_transposed);
-    un_byte_slice(x_transposed, test_x_transposed);
-    uint64_t *test_x = x;
-    // test both are equal
-    for (int i = 0; i < 16; i++) {
-        assert(test_x[i] == test_x_transposed[i]);
-    }
+    // un_byte_slice(x_transposed, test_x_transposed);
+    // uint64_t *test_x = x;
+    // // test both are equal
+    // for (int i = 0; i < 16; i++) {
+    //     assert(test_x[i] == test_x_transposed[i]);
+    // }
     byte_slice(y, y_transposed);
     byte_slice_mul_128((uint64_t*)x_transposed, (uint64_t*)y_transposed, (uint64_t*)z_transposed);
     un_byte_slice(z_transposed, z);
@@ -552,7 +552,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n224, &n225, &n227);
   n229 = n228 ^ n227 ;
   //n226 = ~n222 & n223 ;
-  multiply_constant_64b_using_log_table(&n223, &n226);
+  multiply_constant_64b_using_table(&n223, &n226);
   n230 = n229 ^ n226 ;
   n215 = x[13] ^ x[12] ;
   n216 = y[13] ^ y[12] ;
@@ -560,7 +560,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n215, &n216, &n218);
   n220 = n219 ^ n218 ;
   //n217 = ~n213 & n214 ;
-  multiply_constant_64b_using_log_table(&n214, &n217);
+  multiply_constant_64b_using_table(&n214, &n217);
   n221 = n220 ^ n217 ;
   n247 = n230 ^ n221 ;
   n185 = x[11] ^ x[10] ;
@@ -569,7 +569,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n185, &n186, &n188);
   n190 = n189 ^ n188 ;
   //n187 = ~n183 & n184 ;
-  multiply_constant_64b_using_log_table(&n184, &n187);
+  multiply_constant_64b_using_table(&n184, &n187);
   n191 = n190 ^ n187 ;
   n176 = x[9] ^ x[8] ;
   n177 = y[9] ^ y[8] ;
@@ -577,7 +577,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n176, &n177, &n179);
   n181 = n180 ^ n179 ;
   //n178 = ~n174 & n175 ;
-  multiply_constant_64b_using_log_table(&n175, &n178);
+  multiply_constant_64b_using_table(&n175, &n178);
   n182 = n181 ^ n178 ;
   n208 = n191 ^ n182 ;
   n304 = n247 ^ n208 ;
@@ -587,7 +587,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n83, &n84, &n86);
   n88 = n87 ^ n86 ;
   //n85 = ~n81 & n82 ;
-  multiply_constant_64b_using_log_table(&n82, &n85);
+  multiply_constant_64b_using_table(&n82, &n85);
   n89 = n88 ^ n85 ;
   n74 = x[5] ^ x[4] ;
   n75 = y[5] ^ y[4] ;
@@ -595,7 +595,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n74, &n75, &n77);
   n79 = n78 ^ n77 ;
   //n76 = ~n72 & n73 ;
-  multiply_constant_64b_using_log_table(&n73, &n76);
+  multiply_constant_64b_using_table(&n73, &n76);
   n80 = n79 ^ n76 ;
   n106 = n89 ^ n80 ;
   n44 = x[3] ^ x[2] ;
@@ -604,7 +604,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n44, &n45, &n47);
   n49 = n48 ^ n47 ;
   //n46 = ~n42 & n43 ;
-  multiply_constant_64b_using_log_table(&n43, &n46);
+  multiply_constant_64b_using_table(&n43, &n46);
   n50 = n49 ^ n46 ;
   n35 = x[1] ^ x[0] ;
   n36 = y[1] ^ y[0] ;
@@ -612,7 +612,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n35, &n36, &n38);
   n40 = n39 ^ n38 ;
   //n37 = ~n33 & n34 ;
-  multiply_constant_64b_using_log_table(&n34, &n37);
+  multiply_constant_64b_using_table(&n34, &n37);
   n41 = n40 ^ n37 ;
   n67 = n50 ^ n41 ;
   n163 = n106 ^ n67 ;
@@ -670,11 +670,11 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n239, &n240, &n242);
   n244 = n243 ^ n242 ;
   //n241 = ~n237 & n238 ;
-  multiply_constant_64b_using_log_table(&n238, &n241);
+  multiply_constant_64b_using_table(&n238, &n241);
   n245 = n244 ^ n241 ;
   n250 = n247 ^ n245 ;
   //n235 = ~n228 & n230 ;
-  multiply_constant_64b_using_log_table(&n230, &n235);
+  multiply_constant_64b_using_table(&n230, &n235);
   n236 = n235 ^ n228 ;
   n251 = n250 ^ n236 ;
   n200 = n194 ^ n192 ;
@@ -683,11 +683,11 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n200, &n201, &n203);
   n205 = n204 ^ n203 ;
   //n202 = ~n198 & n199 ;
-  multiply_constant_64b_using_log_table(&n199, &n202);
+  multiply_constant_64b_using_table(&n199, &n202);
   n206 = n205 ^ n202 ;
   n211 = n208 ^ n206 ;
   //n196 = ~n189 & n191 ;
-  multiply_constant_64b_using_log_table(&n191, &n196);
+  multiply_constant_64b_using_table(&n191, &n196);
   n197 = n196 ^ n189 ;
   n212 = n211 ^ n197 ;
   n306 = n251 ^ n212 ;
@@ -697,11 +697,11 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n98, &n99, &n101);
   n103 = n102 ^ n101 ;
   //n100 = ~n96 & n97 ;
-  multiply_constant_64b_using_log_table(&n97, &n100);
+  multiply_constant_64b_using_table(&n97, &n100);
   n104 = n103 ^ n100 ;
   n109 = n106 ^ n104 ;
   //n94 = ~n87 & n89 ;
-  multiply_constant_64b_using_log_table(&n89, &n94);
+  multiply_constant_64b_using_table(&n89, &n94);
   n95 = n94 ^ n87 ;
   n110 = n109 ^ n95 ;
   n59 = n53 ^ n51 ;
@@ -710,11 +710,11 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n59, &n60, &n62);
   n64 = n63 ^ n62 ;
   //n61 = ~n57 & n58 ;
-  multiply_constant_64b_using_log_table(&n58, &n61);
+  multiply_constant_64b_using_table(&n58, &n61);
   n65 = n64 ^ n61 ;
   n70 = n67 ^ n65 ;
   //n55 = ~n48 & n50 ;
-  multiply_constant_64b_using_log_table(&n50, &n55);
+  multiply_constant_64b_using_table(&n50, &n55);
   n56 = n55 ^ n48 ;
   n71 = n70 ^ n56 ;
   n165 = n110 ^ n71 ;
@@ -768,7 +768,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n275, &n276, &n278);
   n280 = n279 ^ n278 ;
   //n277 = ~n273 & n274 ;
-  multiply_constant_64b_using_log_table(&n274, &n277);
+  multiply_constant_64b_using_table(&n274, &n277);
   n281 = n280 ^ n277 ;
   n266 = n254 ^ n252 ;
   n267 = n255 ^ n253 ;
@@ -776,7 +776,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n266, &n267, &n269);
   n271 = n270 ^ n269 ;
   //n268 = ~n264 & n265 ;
-  multiply_constant_64b_using_log_table(&n265, &n268);
+  multiply_constant_64b_using_table(&n265, &n268);
   n272 = n271 ^ n268 ;
   n298 = n281 ^ n272 ;
   n309 = n304 ^ n298 ;
@@ -787,7 +787,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n134, &n135, &n137);
   n139 = n138 ^ n137 ;
   //n136 = ~n132 & n133 ;
-  multiply_constant_64b_using_log_table(&n133, &n136);
+  multiply_constant_64b_using_table(&n133, &n136);
   n140 = n139 ^ n136 ;
   n125 = n113 ^ n111 ;
   n126 = n114 ^ n112 ;
@@ -795,7 +795,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n125, &n126, &n128);
   n130 = n129 ^ n128 ;
   //n127 = ~n123 & n124 ;
-  multiply_constant_64b_using_log_table(&n124, &n127);
+  multiply_constant_64b_using_table(&n124, &n127);
   n131 = n130 ^ n127 ;
   n157 = n140 ^ n131 ;
   n168 = n163 ^ n157 ;
@@ -836,16 +836,16 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n290, &n291, &n293);
   n295 = n294 ^ n293 ;
   //n292 = ~n288 & n289 ;
-  multiply_constant_64b_using_log_table(&n289, &n292);
+  multiply_constant_64b_using_table(&n289, &n292);
   n296 = n295 ^ n292 ;
   n301 = n298 ^ n296 ;
   //n286 = ~n279 & n281 ;
-  multiply_constant_64b_using_log_table(&n281, &n286);
+  multiply_constant_64b_using_table(&n281, &n286);
   n287 = n286 ^ n279 ;
   n302 = n301 ^ n287 ;
   n313 = n306 ^ n302 ;
   //n260 = ~n249 & n251 ;
-  multiply_constant_64b_using_log_table(&n251, &n260);
+  multiply_constant_64b_using_table(&n251, &n260);
   n261 = n260 ^ n249 ;
   n263 = n261 ^ n247 ;
   n314 = n313 ^ n263 ;
@@ -855,16 +855,16 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n149, &n150, &n152);
   n154 = n153 ^ n152 ;
   //n151 = ~n147 & n148 ;
-  multiply_constant_64b_using_log_table(&n148, &n151);
+  multiply_constant_64b_using_table(&n148, &n151);
   n155 = n154 ^ n151 ;
   n160 = n157 ^ n155 ;
   //n145 = ~n138 & n140 ;
-  multiply_constant_64b_using_log_table(&n140, &n145);
+  multiply_constant_64b_using_table(&n140, &n145);
   n146 = n145 ^ n138 ;
   n161 = n160 ^ n146 ;
   n172 = n165 ^ n161 ;
   //n119 = ~n108 & n110 ;
-  multiply_constant_64b_using_log_table(&n110, &n119);
+  multiply_constant_64b_using_table(&n110, &n119);
   n120 = n119 ^ n108 ;
   n122 = n120 ^ n106 ;
   n173 = n172 ^ n122 ;
@@ -916,7 +916,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n389, &n390, &n392);
   n394 = n393 ^ n392 ;
   //n391 = ~n387 & n388 ;
-  multiply_constant_64b_using_log_table(&n388, &n391);
+  multiply_constant_64b_using_table(&n388, &n391);
   n395 = n394 ^ n391 ;
   n380 = n325 ^ n323 ;
   n381 = n326 ^ n324 ;
@@ -924,7 +924,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n380, &n381, &n383);
   n385 = n384 ^ n383 ;
   //n382 = ~n378 & n379 ;
-  multiply_constant_64b_using_log_table(&n379, &n382);
+  multiply_constant_64b_using_table(&n379, &n382);
   n386 = n385 ^ n382 ;
   n412 = n395 ^ n386 ;
   n350 = n321 ^ n319 ;
@@ -933,7 +933,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n350, &n351, &n353);
   n355 = n354 ^ n353 ;
   //n352 = ~n348 & n349 ;
-  multiply_constant_64b_using_log_table(&n349, &n352);
+  multiply_constant_64b_using_table(&n349, &n352);
   n356 = n355 ^ n352 ;
   n341 = n317 ^ n315 ;
   n342 = n318 ^ n316 ;
@@ -941,7 +941,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n341, &n342, &n344);
   n346 = n345 ^ n344 ;
   //n343 = ~n339 & n340 ;
-  multiply_constant_64b_using_log_table(&n340, &n343);
+  multiply_constant_64b_using_table(&n340, &n343);
   n347 = n346 ^ n343 ;
   n373 = n356 ^ n347 ;
   n469 = n412 ^ n373 ;
@@ -978,11 +978,11 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n404, &n405, &n407);
   n409 = n408 ^ n407 ;
   //n406 = ~n402 & n403 ;
-  multiply_constant_64b_using_log_table(&n403, &n406);
+  multiply_constant_64b_using_table(&n403, &n406);
   n410 = n409 ^ n406 ;
   n415 = n412 ^ n410 ;
   //n400 = ~n393 & n395 ;
-  multiply_constant_64b_using_log_table(&n395, &n400);
+  multiply_constant_64b_using_table(&n395, &n400);
   n401 = n400 ^ n393 ;
   n416 = n415 ^ n401 ;
   n365 = n359 ^ n357 ;
@@ -991,11 +991,11 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n365, &n366, &n368);
   n370 = n369 ^ n368 ;
   //n367 = ~n363 & n364 ;
-  multiply_constant_64b_using_log_table(&n364, &n367);
+  multiply_constant_64b_using_table(&n364, &n367);
   n371 = n370 ^ n367 ;
   n376 = n373 ^ n371 ;
   //n361 = ~n354 & n356 ;
-  multiply_constant_64b_using_log_table(&n356, &n361);
+  multiply_constant_64b_using_table(&n356, &n361);
   n362 = n361 ^ n354 ;
   n377 = n376 ^ n362 ;
   n471 = n416 ^ n377 ;
@@ -1031,7 +1031,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n440, &n441, &n443);
   n445 = n444 ^ n443 ;
   //n442 = ~n438 & n439 ;
-  multiply_constant_64b_using_log_table(&n439, &n442);
+  multiply_constant_64b_using_table(&n439, &n442);
   n446 = n445 ^ n442 ;
   n431 = n419 ^ n417 ;
   n432 = n420 ^ n418 ;
@@ -1039,7 +1039,7 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n431, &n432, &n434);
   n436 = n435 ^ n434 ;
   //n433 = ~n429 & n430 ;
-  multiply_constant_64b_using_log_table(&n430, &n433);
+  multiply_constant_64b_using_table(&n430, &n433);
   n437 = n436 ^ n433 ;
   n463 = n446 ^ n437 ;
   n474 = n469 ^ n463 ;
@@ -1071,22 +1071,22 @@ void byte_slice_mul_128(uint64_t x[16], uint64_t y[16], uint64_t* z)
   multiply_64b_using_log_table(&n455, &n456, &n458);
   n460 = n459 ^ n458 ;
   //n457 = ~n453 & n454 ;
-  multiply_constant_64b_using_log_table(&n454, &n457);
+  multiply_constant_64b_using_table(&n454, &n457);
   n461 = n460 ^ n457 ;
   n466 = n463 ^ n461 ;
   //n451 = ~n444 & n446 ;
-  multiply_constant_64b_using_log_table(&n446, &n451);
+  multiply_constant_64b_using_table(&n446, &n451);
   n452 = n451 ^ n444 ;
   n467 = n466 ^ n452 ;
   n478 = n471 ^ n467 ;
   //n425 = ~n414 & n416 ;
-  multiply_constant_64b_using_log_table(&n416, &n425);
+  multiply_constant_64b_using_table(&n416, &n425);
   n426 = n425 ^ n414 ;
   n428 = n426 ^ n412 ;
   n479 = n478 ^ n428 ;
   n502 = n487 ^ n479 ;
   //n331 = ~n312 & n314 ;
-  multiply_constant_64b_using_log_table(&n314, &n331);
+  multiply_constant_64b_using_table(&n314, &n331);
   n332 = n331 ^ n312 ;
   n334 = n332 ^ n310 ;
   n338 = n334 ^ n306 ;

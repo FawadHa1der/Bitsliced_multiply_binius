@@ -60,7 +60,7 @@ void byte_slice(uint128_t *input, uint64_t *output);
 void un_byte_slice(uint64_t* input, uint128_t *output);
 void multiply_64b_using_log_table(
     uint64_t *lhs, uint64_t *rhs, uint64_t* result);
-void multiply_constant_64b_using_log_table(
+void multiply_constant_64b_using_table(
      uint64_t *rhs, uint64_t* result) ;
 
 #endif

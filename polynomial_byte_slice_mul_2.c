@@ -79,7 +79,7 @@ void byte_slice_mul_16(uint64_t x[2], uint64_t y[2], uint64_t* z)
   multiply_64b_using_log_table( &x[1],&y[1], &n6);
 
   n10 = n6 ^ n5 ;
-  multiply_constant_64b_using_log_table(&n6,&n6_high_r1r2 ); 
+  multiply_constant_64b_using_table(&n6,&n6_high_r1r2 ); 
 
 
   n7 = x[1] ^ x[0] ;
