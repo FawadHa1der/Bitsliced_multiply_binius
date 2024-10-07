@@ -26,10 +26,9 @@ int test_128_byte_slice(){
 
     uint64_t start = mach_absolute_time();
     byte_slice_transpose_mul_128(x, y, z);
-    byte_slice_transpose_mul_128(&x[8], &y[8], &z[8]);
     byte_slice_transpose_mul_128(&x[16], &y[16], &z[16]);
-    byte_slice_transpose_mul_128(&x[24], &y[24], &z[24]);
     byte_slice_transpose_mul_128(&x[32], &y[32], &z[32]);
+    byte_slice_transpose_mul_128(&x[48], &y[48], &z[48]);
     uint64_t end = mach_absolute_time();
 
     // Get the timebase info to convert to nanoseconds

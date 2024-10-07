@@ -73,19 +73,19 @@ void byte_slice_mul_16(uint64_t x[2], uint64_t y[2], uint64_t* z)
 {
   uint64_t n5 , n6 , n7 , n8 , n9 , n10 , n11 , n12, n6_high_r1r2 ;
   //n5 = x[0] & y[0] ;
-  multiply_64b_using_log_table( &x[0], &y[0],&n5);
+  multiply_128b_using_log_table( &x[0], &y[0],&n5);
 
   //n6 = x[1] & y[1] ;
-  multiply_64b_using_log_table( &x[1],&y[1], &n6);
+  multiply_128b_using_log_table( &x[1],&y[1], &n6);
 
   n10 = n6 ^ n5 ;
-  multiply_constant_64b_using_table(&n6,&n6_high_r1r2 ); 
+  multiply_constant_128b_using_table(&n6,&n6_high_r1r2 ); 
 
 
   n7 = x[1] ^ x[0] ;
   n8 = y[1] ^ y[0] ;
   //n9 = n7 & n8 ;
-  multiply_64b_using_log_table( &n7,&n8, &n9);
+  multiply_128b_using_log_table( &n7,&n8, &n9);
   
   n11 = n10 ^ n9 ;
   n12 = n11 ^ n6_high_r1r2 ;

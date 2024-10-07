@@ -3,6 +3,7 @@
 #define _BS_H_
 
 #include <stdint.h>
+#include <arm_neon.h>
 
 #define BLOCK_SIZE          128
 #define BLOCK_SIZE_BYTES    (BLOCK_SIZE / 8)
@@ -49,6 +50,7 @@
 void bs_transpose(word_t * blocks, word_t width_to_adjacent_block);
 void bs_transpose_rev(word_t * blocks, word_t width_to_adjacent_block);
 void bs_transpose_dst(word_t * transpose, word_t * blocks, word_t width_to_adjacent_block);
+typedef uint8x16_t M128;
 
 // Assuming uint128_t is represented as two uint64_t for low and high parts
 typedef struct {
@@ -58,9 +60,9 @@ typedef struct {
 
 void byte_slice(uint128_t *input, uint64_t *output);
 void un_byte_slice(uint64_t* input, uint128_t *output);
-void multiply_64b_using_log_table(
-    uint64_t *lhs, uint64_t *rhs, uint64_t* result);
-void multiply_constant_64b_using_table(
-     uint64_t *rhs, uint64_t* result) ;
+void multiply_128b_using_log_table(
+    uint8x16_t *lhs, uint8x16_t *rhs, uint8x16_t* result) ;
+void multiply_constant_128b_using_table(
+     M128 *rhs, M128* result);
 
 #endif

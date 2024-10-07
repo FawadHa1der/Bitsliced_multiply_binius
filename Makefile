@@ -4,8 +4,8 @@
 CC = clang
 
 # Compiler Flags
-CFLAGS = -Wall -O3 -ftree-vectorize
 # CFLAGS = -Wall -O3 -ftree-vectorize
+CFLAGS = -Wall -O3 -ftree-vectorize
 # CFLAGS = -Wall
 
 # Output executable name
