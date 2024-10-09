@@ -14,12 +14,6 @@ void byte_slice_transpose_mul_128(uint128_t x[16], uint128_t y[16], uint128_t* z
     uint8x16_t z_transposed[16];
     
     byte_slice(x, x_transposed);
-    // un_byte_slice(x_transposed, test_x_transposed);
-    // uint8x16_t *test_x = x;
-    // // test both are equal
-    // for (int i = 0; i < 16; i++) {
-    //     assert(test_x[i] == test_x_transposed[i]);
-    // }
     byte_slice(y, y_transposed);
     byte_slice_mul_128((uint8x16_t*)x_transposed, (uint8x16_t*)y_transposed, (uint8x16_t*)z_transposed);
     un_byte_slice(z_transposed, z);

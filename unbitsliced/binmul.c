@@ -229,7 +229,7 @@ void test_128(){
     // printf("Input v2 %016llx \n: ", v2);
     clock_t start = clock();
     uint128_t result = {0, 0};
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 64; i++) {
         // uint64_t v1 = i;  // Example 64-bit number
         // uint64_t v2 = i+1;  // Example 64-bit number
         v2.high += 1;

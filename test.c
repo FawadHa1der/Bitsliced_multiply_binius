@@ -40,10 +40,10 @@ int test_128_byte_slice(){
 
     // Convert nanoseconds to microseconds for display
     double time_taken = (double)elapsed / 1e3;
-    printf("Time taken: %f microseconds (%llu nanoseconds)\n", time_taken, elapsed);
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 64; i++) {
         printf("z[%d] = %016llx%016llx\n", i, z[i].high, z[i].low);
     }
+    printf("Time taken: %f microseconds (%llu nanoseconds)\n", time_taken, elapsed);
 
 }
 

@@ -24,7 +24,7 @@ void bs_transpose(word_t * blocks, word_t width_to_adjacent_block)
 }
 
 
-M128 lookup_16x8b(const uint8_t table[256], M128 x) {
+inline M128 lookup_16x8b(const uint8_t table[256], M128 x) {
     // Load the table as 4 sets of 4 16-byte vectors
     uint8x16x4_t tbl0 = vld1q_u8_x4(&table[0]);   // First 64 bytes (0-63)
     uint8x16x4_t tbl1 = vld1q_u8_x4(&table[64]);  // Second 64 bytes (64-127)
@@ -98,7 +98,7 @@ const uint8_t EXP_TABLE[256] = {
 	0x6B, 0x70, 0xB7, 0x35, 0xBC, 0x83, 0x9A, 0x7C, 0x7F, 0x4D, 0x8F, 0x52, 0x04, 0x4C, 0x9C, 0x11,
 	0x62, 0xE7, 0x10, 0x71, 0xA4, 0x76, 0xDA, 0x28, 0x16, 0x1C, 0xB9, 0xDC, 0x45, 0x0B, 0xB6, 0x26,
 	0xFF, 0xE5, 0x31, 0xF0, 0x1F, 0x8B, 0x1E, 0x98, 0x5D, 0xFE, 0xF6, 0x72, 0x96, 0xB4, 0x07, 0x7E,
-	0x5E, 0xCC, 0x34, 0xAF, 0xC0, 0xFC, 0xD7, 0xF3, 0x2D, 0x49, 0xC3, 0xCE, 0x15, 0x2E, 0x7B, 0x00,
+	0x5E, 0xCC, 0x34, 0xAF, 0xC0, 0xFC, 0xD7, 0xF3, 0x2D, 0x49, 0xC3, 0xCE, 0x15, 0x2E, 0x7B, 0x01,
 };
 
 const uint8_t LOG_TABLE[256] = {
@@ -120,8 +120,9 @@ const uint8_t LOG_TABLE[256] = {
 	0xE3, 0x21, 0x64, 0xF7, 0x0E, 0x9E, 0xEA, 0x5F, 0x7F, 0x46, 0x12, 0x3E, 0xF5, 0xAE, 0xE9, 0xE0,
 };
 
+const uint8x16_t all_ffs = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
-M128 packed_tower_16x8b_multiply(M128 a, M128 b) {
+inline M128 packed_tower_16x8b_multiply(M128 a, M128 b) {
     // Look up the logarithms of a and b
 
 	// let loga = lookup_16x8b(TOWER_LOG_LOOKUP_TABLE, a).into();
@@ -150,18 +151,16 @@ M128 packed_tower_16x8b_multiply(M128 a, M128 b) {
     M128 c = lookup_16x8b(EXP_TABLE, logc);
 
     // Handle case where either a or b is zero
-    // uint8x16_t a_is_zero = vceqq_u8(a, vdupq_n_u8(0)); // a == 0 ?
-    // uint8x16_t b_is_zero = vceqq_u8(b, vdupq_n_u8(0)); // b == 0 ?
     uint8x16_t a_or_b_is_zero = vorrq_u8(vceqzq_u8(a), vceqzq_u8(b)); // a == 0 || b == 0
 
     // XOR the result with the condition (if a or b is 0, result should be 0)
-    uint8x16_t final_result = vandq_u8(c, veorq_u8(a_or_b_is_zero, vdupq_n_u8(0xFF)));
+    uint8x16_t final_result = vandq_u8(c, veorq_u8(a_or_b_is_zero, all_ffs));
 
     // Return the final result
     return final_result;
 }
 // Wrapper function for uint64_t inputs
-void multiply_128b_using_log_table(
+inline void multiply_128b_using_log_table(
     uint8x16_t *lhs, uint8x16_t *rhs, uint8x16_t* result) {
     *result = packed_tower_16x8b_multiply(*lhs, *rhs);
    return;
@@ -213,6 +212,7 @@ uint8_t multiply_8b_using_log_table(
     return result;
 }
 
+
 #define NUM_INPUTS 16        // Number of 128-bit numbers
 #define BYTES_IN_128BIT 16   // 16 bytes in a 128-bit number
 #define SLICED_OUTPUTS 16
@@ -221,7 +221,7 @@ uint8_t multiply_8b_using_log_table(
 //////////////////////////////////////////////////////
 // Byte Slicing: Convert 8 x 128-bit inputs to 16 rows of 64 bits
 //////////////////////////////////////////////////////
-void byte_slice(uint128_t input[NUM_INPUTS], uint64_t output[SLICED_OUTPUTS]) {
+inline void byte_slice(uint128_t input[NUM_INPUTS], uint64_t output[SLICED_OUTPUTS]) {
     // Cast the input to uint8_t* for easier access to bytes
     uint8_t* input_bytes = (uint8_t*) input;
     uint8_t* output_bytes = (uint8_t*) output;
@@ -238,12 +238,13 @@ void byte_slice(uint128_t input[NUM_INPUTS], uint64_t output[SLICED_OUTPUTS]) {
             output_bytes[byte_index * NUM_INPUTS + i] = input_bytes[i * BYTES_IN_128BIT + byte_index];
         }
     }
+
 }
 
 //////////////////////////////////////////////////////
 // Un-byte Slicing: Convert 16 rows of 64 bits back to 8 x 128-bit inputs
 //////////////////////////////////////////////////////
-void un_byte_slice(uint64_t input[SLICED_OUTPUTS], uint128_t output[NUM_INPUTS]) {
+inline void un_byte_slice(uint64_t input[SLICED_OUTPUTS], uint128_t output[NUM_INPUTS]) {
     // Cast the input to uint8_t* for easier access to bytes
     uint8_t* input_bytes = (uint8_t*) input;
     uint8_t* output_bytes = (uint8_t*) output;
