@@ -3,7 +3,7 @@
 #define _BS_H_
 
 #include <stdint.h>
-#include <arm_neon.h>
+#include <immintrin.h>
 
 #define BLOCK_SIZE          128
 #define BLOCK_SIZE_BYTES    (BLOCK_SIZE / 8)
@@ -50,7 +50,6 @@
 void bs_transpose(word_t * blocks, word_t width_to_adjacent_block);
 void bs_transpose_rev(word_t * blocks, word_t width_to_adjacent_block);
 void bs_transpose_dst(word_t * transpose, word_t * blocks, word_t width_to_adjacent_block);
-typedef uint8x16_t M128;
 
 // Assuming uint128_t is represented as two uint64_t for low and high parts
 typedef struct {
@@ -59,10 +58,13 @@ typedef struct {
 } uint128_t;
 
 void byte_slice(uint128_t *input, uint64_t *output);
+void byte_slice_avx(__m512i *input, __m512i *output);
+void byte_slice_avx_2_mul(__m512i *input_1, __m512i *input_2, __m512i *slice_output_1, __m512i *slice_output_2, __m512i *mul_level_0, __m512i *xor_level_0 );
+__m512i wrapper_mm512_xor_si512(__m512i input_1, __m512i input_2);
 void un_byte_slice(uint64_t* input, uint128_t *output);
-void multiply_128b_using_log_table(
-    uint8x16_t *lhs, uint8x16_t *rhs, uint8x16_t* result) ;
-void multiply_constant_128b_using_table(
-     M128 *rhs, M128* result);
-
+void un_byte_slice_avx(uint64_t* input, uint128_t *output);
+void initialize_maps();
+__m512i gfni_mul(__m512i lhs, __m512i rhs);
+void multiply_512b_using_gfni(__m512i *lhs, __m512i *rhs,__m512i* result );
+void multiply_constant_512b_using_gfni(__m512i *rhs, __m512i* result );
 #endif

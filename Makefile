@@ -1,11 +1,12 @@
 # Makefile
 
 # Compiler
-CC = clang
+CC = gcc
 
 # Compiler Flags
 # CFLAGS = -Wall -O3 -ftree-vectorize
-CFLAGS = -Wall -O2 -ftree-vectorize
+# gcc -O3 -fopt-info-asm=spills.txt your_code.c
+CFLAGS =  -Wall -O2 -O3 -mavx512f -mavx512bw -mgfni -mavx512vbmi
 # CFLAGS = -Wall
 
 # Output executable name
@@ -15,7 +16,7 @@ OUTPUT = bitsliced
 LIBRARY = libbitsliced.a
 
 # Source files (excluding test.c for static lib)
-SOURCES = bs_multiply_64.c bs.c bs_multiply_128.c polynomial_byte_sliced_mul_16.c polynomial_byte_slice_mul_2.c
+SOURCES = bs_multiply_64.c bs.c bs_multiply_128.c polynomial_byte_sliced_mul_16.c 
 
 # Add test.c to SOURCES if not building static library
 ifeq ($(STATIC),)
@@ -26,7 +27,7 @@ endif
 OBJECTS = $(SOURCES:.c=.o)
 
 # Header files
-HEADERS = bs_multiply_64.h bs.h bs_multiply_128.h polynomial_byte_sliced_mul_16.h polynomial_byte_slice_mul_2.h
+HEADERS = bs_multiply_64.h bs.h bs_multiply_128.h polynomial_byte_sliced_mul_16.h 
 
 # Build all
 all: $(OUTPUT)

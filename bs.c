@@ -6,11 +6,10 @@
 
 #include <stdio.h>
 #include <inttypes.h> // for PRId64 macro
-#include <arm_neon.h>
 
 #define bs2le(x) (x)
 #define bs2be(x) (x)
-
+static inline __m512i linear_transform(__m512i x, __m512i map) ;
 void bs_transpose(word_t * blocks, word_t width_to_adjacent_block)
 {
     word_t transpose[BLOCK_SIZE];
@@ -20,206 +19,104 @@ void bs_transpose(word_t * blocks, word_t width_to_adjacent_block)
     int sizeof_transpose = sizeof(transpose);
     memmove(blocks,transpose,sizeof(transpose));
 
-
 }
 
 
-inline M128 lookup_16x8b(const uint8_t table[256], M128 x) {
-    // Load the table as 4 sets of 4 16-byte vectors
-    uint8x16x4_t tbl0 = vld1q_u8_x4(&table[0]);   // First 64 bytes (0-63)
-    uint8x16x4_t tbl1 = vld1q_u8_x4(&table[64]);  // Second 64 bytes (64-127)
-    uint8x16x4_t tbl2 = vld1q_u8_x4(&table[128]); // Third 64 bytes (128-191)
-    uint8x16x4_t tbl3 = vld1q_u8_x4(&table[192]); // Fourth 64 bytes (192-255)
+__m512i TOWER_TO_AES_MAP;
+__m512i AES_TO_TOWER_MAP;
+__m512i const_16_512b;
 
-    // Perform table lookups
-    uint8x16_t y0 = vqtbl4q_u8(tbl0, x);                         // Lookup in the first 64 bytes
-    uint8x16_t y1 = vqtbl4q_u8(tbl1, veorq_u8(x, vdupq_n_u8(0x40))); // Lookup in the second 64 bytes
-    uint8x16_t y2 = vqtbl4q_u8(tbl2, veorq_u8(x, vdupq_n_u8(0x80))); // Lookup in the third 64 bytes
-    uint8x16_t y3 = vqtbl4q_u8(tbl3, veorq_u8(x, vdupq_n_u8(0xC0))); // Lookup in the fourth 64 bytes
-
-    // Combine the results using XOR
-    uint8x16_t result = veorq_u8(veorq_u8(y0, y1), veorq_u8(y2, y3));
-
-    return result; // Return the combined result
-}
-
-uint8_t multiply_8b_using_log_table(
-    uint8_t lhs, uint8_t rhs,
-    const uint8_t log_table[256],
-    const uint8_t exp_table[256]
-);
-
-uint8_t multiply_constant_8b_using_table(
-    uint8_t rhs,
-    const uint8_t alpha_table[256]
-);
-    const uint8_t BINARY_TOWER_8B_MUL_ALPHA_MAP  [256] = {
-    0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xa0, 0xb0, 0xc0, 0xd0, 0xe0, 0xf0,
-    0x41, 0x51, 0x61, 0x71, 0x01, 0x11, 0x21, 0x31, 0xc1, 0xd1, 0xe1, 0xf1, 0x81, 0x91, 0xa1, 0xb1,
-    0x82, 0x92, 0xa2, 0xb2, 0xc2, 0xd2, 0xe2, 0xf2, 0x02, 0x12, 0x22, 0x32, 0x42, 0x52, 0x62, 0x72,
-    0xc3, 0xd3, 0xe3, 0xf3, 0x83, 0x93, 0xa3, 0xb3, 0x43, 0x53, 0x63, 0x73, 0x03, 0x13, 0x23, 0x33,
-    0x94, 0x84, 0xb4, 0xa4, 0xd4, 0xc4, 0xf4, 0xe4, 0x14, 0x04, 0x34, 0x24, 0x54, 0x44, 0x74, 0x64,
-    0xd5, 0xc5, 0xf5, 0xe5, 0x95, 0x85, 0xb5, 0xa5, 0x55, 0x45, 0x75, 0x65, 0x15, 0x05, 0x35, 0x25,
-    0x16, 0x06, 0x36, 0x26, 0x56, 0x46, 0x76, 0x66, 0x96, 0x86, 0xb6, 0xa6, 0xd6, 0xc6, 0xf6, 0xe6,
-    0x57, 0x47, 0x77, 0x67, 0x17, 0x07, 0x37, 0x27, 0xd7, 0xc7, 0xf7, 0xe7, 0x97, 0x87, 0xb7, 0xa7,
-    0xe8, 0xf8, 0xc8, 0xd8, 0xa8, 0xb8, 0x88, 0x98, 0x68, 0x78, 0x48, 0x58, 0x28, 0x38, 0x08, 0x18,
-    0xa9, 0xb9, 0x89, 0x99, 0xe9, 0xf9, 0xc9, 0xd9, 0x29, 0x39, 0x09, 0x19, 0x69, 0x79, 0x49, 0x59,
-    0x6a, 0x7a, 0x4a, 0x5a, 0x2a, 0x3a, 0x0a, 0x1a, 0xea, 0xfa, 0xca, 0xda, 0xaa, 0xba, 0x8a, 0x9a,
-    0x2b, 0x3b, 0x0b, 0x1b, 0x6b, 0x7b, 0x4b, 0x5b, 0xab, 0xbb, 0x8b, 0x9b, 0xeb, 0xfb, 0xcb, 0xdb,
-    0x7c, 0x6c, 0x5c, 0x4c, 0x3c, 0x2c, 0x1c, 0x0c, 0xfc, 0xec, 0xdc, 0xcc, 0xbc, 0xac, 0x9c, 0x8c,
-    0x3d, 0x2d, 0x1d, 0x0d, 0x7d, 0x6d, 0x5d, 0x4d, 0xbd, 0xad, 0x9d, 0x8d, 0xfd, 0xed, 0xdd, 0xcd,
-    0xfe, 0xee, 0xde, 0xce, 0xbe, 0xae, 0x9e, 0x8e, 0x7e, 0x6e, 0x5e, 0x4e, 0x3e, 0x2e, 0x1e, 0x0e,
-    0xbf, 0xaf, 0x9f, 0x8f, 0xff, 0xef, 0xdf, 0xcf, 0x3f, 0x2f, 0x1f, 0x0f, 0x7f, 0x6f, 0x5f, 0x4f,
-    };
-
-void multiply_constant_128b_using_table(
-     M128 *rhs, M128* result) {
+///// TEST LOADS/////
+__m512i TEMP1;
+__m512i TEMP2;
+//// END TEST LOADS////
+// Define the constants in the form of vectors
+void initialize_maps() {
+    // Initialize the constants at runtime
+    TOWER_TO_AES_MAP = _mm512_set1_epi64(0x31506aea964e983e);
+    AES_TO_TOWER_MAP = _mm512_set1_epi64(0xd1e8863e72a2700c);
     
+    const_16_512b = linear_transform(_mm512_set1_epi8(16), TOWER_TO_AES_MAP);
 
-    // uint8_t *lhs_bytes = (uint8_t *)lhs;
-    // uint8_t *rhs_bytes = (uint8_t *)rhs;
-    // uint8_t *result_bytes = (uint8_t *)result;
-    *result = lookup_16x8b(BINARY_TOWER_8B_MUL_ALPHA_MAP, *rhs);
+    // remove 2 lines below
+    TEMP1 = _mm512_set1_epi64(0x31506aea964e983e);
+    TEMP2 = _mm512_set1_epi64(0xd1e8863e72a2700c);
+
+
+}
+
+// Helper functions
+
+// Updated linear transformation function based on the Rust definition
+static inline __m512i linear_transform(__m512i x, __m512i map) {
+    // __m512i map_vector = _mm512_set1_epi64(map);
+    return _mm512_gf2p8affine_epi64_epi8(x, map, 0); // The constant 0 is the 'b' value, which remains zero.
+}
+
+// GF(2^8) multiplication using the GFNI instruction
+static inline __m512i gf2p8mul_epi8(__m512i lhs, __m512i rhs) {
+    return _mm512_gf2p8mul_epi8(lhs, rhs);
+}
+
+// Function that simulates the multiplication in GF(2^8) with optional transformation maps
+__m512i gfni_mul(__m512i lhs, __m512i rhs) {
     
-}
-const uint8_t EXP_TABLE[256] = {
-	0x01, 0x13, 0x43, 0x66, 0xAB, 0x8C, 0x60, 0xC6, 0x91, 0xCA, 0x59, 0xB2, 0x6A, 0x63, 0xF4, 0x53,
-	0x17, 0x0F, 0xFA, 0xBA, 0xEE, 0x87, 0xD6, 0xE0, 0x6E, 0x2F, 0x68, 0x42, 0x75, 0xE8, 0xEA, 0xCB,
-	0x4A, 0xF1, 0x0C, 0xC8, 0x78, 0x33, 0xD1, 0x9E, 0x30, 0xE3, 0x5C, 0xED, 0xB5, 0x14, 0x3D, 0x38,
-	0x67, 0xB8, 0xCF, 0x06, 0x6D, 0x1D, 0xAA, 0x9F, 0x23, 0xA0, 0x3A, 0x46, 0x39, 0x74, 0xFB, 0xA9,
-	0xAD, 0xE1, 0x7D, 0x6C, 0x0E, 0xE9, 0xF9, 0x88, 0x2C, 0x5A, 0x80, 0xA8, 0xBE, 0xA2, 0x1B, 0xC7,
-	0x82, 0x89, 0x3F, 0x19, 0xE6, 0x03, 0x32, 0xC2, 0xDD, 0x56, 0x48, 0xD0, 0x8D, 0x73, 0x85, 0xF7,
-	0x61, 0xD5, 0xD2, 0xAC, 0xF2, 0x3E, 0x0A, 0xA5, 0x65, 0x99, 0x4E, 0xBD, 0x90, 0xD9, 0x1A, 0xD4,
-	0xC1, 0xEF, 0x94, 0x95, 0x86, 0xC5, 0xA3, 0x08, 0x84, 0xE4, 0x22, 0xB3, 0x79, 0x20, 0x92, 0xF8,
-	0x9B, 0x6F, 0x3C, 0x2B, 0x24, 0xDE, 0x64, 0x8A, 0x0D, 0xDB, 0x3B, 0x55, 0x7A, 0x12, 0x50, 0x25,
-	0xCD, 0x27, 0xEC, 0xA6, 0x57, 0x5B, 0x93, 0xEB, 0xD8, 0x09, 0x97, 0xA7, 0x44, 0x18, 0xF5, 0x40,
-	0x54, 0x69, 0x51, 0x36, 0x8E, 0x41, 0x47, 0x2A, 0x37, 0x9D, 0x02, 0x21, 0x81, 0xBB, 0xFD, 0xC4,
-	0xB0, 0x4B, 0xE2, 0x4F, 0xAE, 0xD3, 0xBF, 0xB1, 0x58, 0xA1, 0x29, 0x05, 0x5F, 0xDF, 0x77, 0xC9,
-	0x6B, 0x70, 0xB7, 0x35, 0xBC, 0x83, 0x9A, 0x7C, 0x7F, 0x4D, 0x8F, 0x52, 0x04, 0x4C, 0x9C, 0x11,
-	0x62, 0xE7, 0x10, 0x71, 0xA4, 0x76, 0xDA, 0x28, 0x16, 0x1C, 0xB9, 0xDC, 0x45, 0x0B, 0xB6, 0x26,
-	0xFF, 0xE5, 0x31, 0xF0, 0x1F, 0x8B, 0x1E, 0x98, 0x5D, 0xFE, 0xF6, 0x72, 0x96, 0xB4, 0x07, 0x7E,
-	0x5E, 0xCC, 0x34, 0xAF, 0xC0, 0xFC, 0xD7, 0xF3, 0x2D, 0x49, 0xC3, 0xCE, 0x15, 0x2E, 0x7B, 0x01,
-};
-
-const uint8_t LOG_TABLE[256] = {
-	0x00, 0x00, 0xAA, 0x55, 0xCC, 0xBB, 0x33, 0xEE, 0x77, 0x99, 0x66, 0xDD, 0x22, 0x88, 0x44, 0x11,
-	0xD2, 0xCF, 0x8D, 0x01, 0x2D, 0xFC, 0xD8, 0x10, 0x9D, 0x53, 0x6E, 0x4E, 0xD9, 0x35, 0xE6, 0xE4,
-	0x7D, 0xAB, 0x7A, 0x38, 0x84, 0x8F, 0xDF, 0x91, 0xD7, 0xBA, 0xA7, 0x83, 0x48, 0xF8, 0xFD, 0x19,
-	0x28, 0xE2, 0x56, 0x25, 0xF2, 0xC3, 0xA3, 0xA8, 0x2F, 0x3C, 0x3A, 0x8A, 0x82, 0x2E, 0x65, 0x52,
-	0x9F, 0xA5, 0x1B, 0x02, 0x9C, 0xDC, 0x3B, 0xA6, 0x5A, 0xF9, 0x20, 0xB1, 0xCD, 0xC9, 0x6A, 0xB3,
-	0x8E, 0xA2, 0xCB, 0x0F, 0xA0, 0x8B, 0x59, 0x94, 0xB8, 0x0A, 0x49, 0x95, 0x2A, 0xE8, 0xF0, 0xBC,
-	0x06, 0x60, 0xD0, 0x0D, 0x86, 0x68, 0x03, 0x30, 0x1A, 0xA1, 0x0C, 0xC0, 0x43, 0x34, 0x18, 0x81,
-	0xC1, 0xD3, 0xEB, 0x5D, 0x3D, 0x1C, 0xD5, 0xBE, 0x24, 0x7C, 0x8C, 0xFE, 0xC7, 0x42, 0xEF, 0xC8,
-	0x4A, 0xAC, 0x50, 0xC5, 0x78, 0x5E, 0x74, 0x15, 0x47, 0x51, 0x87, 0xE5, 0x05, 0x5C, 0xA4, 0xCA,
-	0x6C, 0x08, 0x7E, 0x96, 0x72, 0x73, 0xEC, 0x9A, 0xE7, 0x69, 0xC6, 0x80, 0xCE, 0xA9, 0x27, 0x37,
-	0x39, 0xB9, 0x4D, 0x76, 0xD4, 0x67, 0x93, 0x9B, 0x4B, 0x3F, 0x36, 0x04, 0x63, 0x40, 0xB4, 0xF3,
-	0xB0, 0xB7, 0x0B, 0x7B, 0xED, 0x2C, 0xDE, 0xC2, 0x31, 0xDA, 0x13, 0xAD, 0xC4, 0x6B, 0x4C, 0xB6,
-	0xF4, 0x70, 0x57, 0xFA, 0xAF, 0x75, 0x07, 0x4F, 0x23, 0xBF, 0x09, 0x1F, 0xF1, 0x90, 0xFB, 0x32,
-	0x5B, 0x26, 0x62, 0xB5, 0x6F, 0x61, 0x16, 0xF6, 0x98, 0x6D, 0xD6, 0x89, 0xDB, 0x58, 0x85, 0xBD,
-	0x17, 0x41, 0xB2, 0x29, 0x79, 0xE1, 0x54, 0xD1, 0x1D, 0x45, 0x1E, 0x97, 0x92, 0x2B, 0x14, 0x71,
-	0xE3, 0x21, 0x64, 0xF7, 0x0E, 0x9E, 0xEA, 0x5F, 0x7F, 0x46, 0x12, 0x3E, 0xF5, 0xAE, 0xE9, 0xE0,
-};
-
-const uint8x16_t all_ffs = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-
-inline M128 packed_tower_16x8b_multiply(M128 a, M128 b) {
-    // Look up the logarithms of a and b
-
-	// let loga = lookup_16x8b(TOWER_LOG_LOOKUP_TABLE, a).into();
-	// let logb = lookup_16x8b(TOWER_LOG_LOOKUP_TABLE, b).into();
-	// let logc = unsafe {
-	// 	let sum = vaddq_u8(loga, logb);
-	// 	let overflow = vcgtq_u8(loga, sum);
-	// 	vsubq_u8(sum, overflow)
-	// };
-	// let c = lookup_16x8b(TOWER_EXP_LOOKUP_TABLE, logc.into()).into();
-	// unsafe {
-	// 	let a_or_b_is_0 = vorrq_u8(vceqzq_u8(a.into()), vceqzq_u8(b.into()));
-	// 	vandq_u8(c, veorq_u8(a_or_b_is_0, M128::fill_with_bit(1).into()))
-	// }
-	// .into()
-
-    M128 loga = lookup_16x8b(LOG_TABLE, a);
-    M128 logb = lookup_16x8b(LOG_TABLE, b);
-
-    // Sum the logarithms and handle overflow using NEON intrinsics
-    uint8x16_t sum = vaddq_u8(loga, logb);          // Add logarithms
-    uint8x16_t overflow = vcgtq_u8(loga, sum);      // Overflow detection
-    uint8x16_t logc = vsubq_u8(sum, overflow);      // Subtract overflow
-
-    // Look up the exponentiation result
-    M128 c = lookup_16x8b(EXP_TABLE, logc);
-
-    // Handle case where either a or b is zero
-    uint8x16_t a_or_b_is_zero = vorrq_u8(vceqzq_u8(a), vceqzq_u8(b)); // a == 0 || b == 0
-
-    // XOR the result with the condition (if a or b is 0, result should be 0)
-    uint8x16_t final_result = vandq_u8(c, veorq_u8(a_or_b_is_zero, all_ffs));
-
-    // Return the final result
-    return final_result;
-}
-// Wrapper function for uint64_t inputs
-inline void multiply_128b_using_log_table(
-    uint8x16_t *lhs, uint8x16_t *rhs, uint8x16_t* result) {
-    *result = packed_tower_16x8b_multiply(*lhs, *rhs);
-   return;
-}
-
-
-
-
-// bsically at bit level we always multiply by 16 in the algorithm and us ethe look up table to get the result.
-uint8_t multiply_constant_8b_using_table(
-    uint8_t rhs,
-    const uint8_t alpha_table[256]
-) {
-    uint8_t result = 0;
-    result = alpha_table[rhs];
-
-    
-    // if (lhs != 0 && rhs != 0) {
-    //     size_t log_table_index = log_table[lhs] + log_table[rhs];
-
-    //     if (log_table_index > 254) {
-    //         log_table_index -= 255;
-    //     }
-    //     result = exp_table[log_table_index];
-    //  //   printf("table look up lhs: %d, rhs: %d, result :%d  \n", lhs, rhs, result);
+    // Apply the TO_AES_MAP transformation if it's not the identity
+    // if (TOWER_TO_AES_MAP != 0) {
+      lhs = linear_transform(lhs, TOWER_TO_AES_MAP);
+       rhs = linear_transform(rhs, TOWER_TO_AES_MAP);
     // }
-    
-    return result;
+
+
+    // Perform the GF(2^8) multiplication using the GFNI instruction
+    __m512i prod_gfni = gf2p8mul_epi8(lhs, rhs);
+
+    // Apply the FROM_AES_MAP transformation if it's not the identity
+    // if (AES_TO_TOWER_MAP != 0) {
+    prod_gfni = linear_transform(prod_gfni, AES_TO_TOWER_MAP);
+    // }
+
+    return prod_gfni;
+}
+
+__m512i gfni_mul_const_16(__m512i rhs) {
+    // Apply the TO_AES_MAP transformation if it's not the identity
+    // if (TOWER_TO_AES_MAP != 0) {
+       __m512i rhs_transformed = linear_transform(rhs, TOWER_TO_AES_MAP);
+    // }
+
+
+    // Perform the GF(2^8) multiplication using the GFNI instruction
+    __m512i prod_gfni = gf2p8mul_epi8(const_16_512b, rhs_transformed);
+
+    // Apply the FROM_AES_MAP transformation if it's not the identity
+    // if (AES_TO_TOWER_MAP != 0) {
+      __m512i  prod_tower = linear_transform(prod_gfni, AES_TO_TOWER_MAP);
+    // }
+
+    return prod_tower;
 }
 
 
-uint8_t multiply_8b_using_log_table(
-    uint8_t lhs, uint8_t rhs,
-    const uint8_t log_table[256],
-    const uint8_t exp_table[256]
-) {
-    uint8_t result = 0;
-    
-    if (lhs != 0 && rhs != 0) {
-        size_t log_table_index = log_table[lhs] + log_table[rhs];
-
-        if (log_table_index > 254) {
-            log_table_index -= 255;
-        }
-        result = exp_table[log_table_index];
-     //   printf("table look up lhs: %d, rhs: %d, result :%d  \n", lhs, rhs, result);
-    }
-    
-    return result;
+inline void multiply_512b_using_gfni(__m512i *lhs, __m512i *rhs,__m512i* result ){
+    __m512i lhs_512 = _mm512_load_si512(lhs);
+    __m512i rhs_512 = _mm512_load_si512(rhs);
+    *result = gfni_mul(lhs_512, rhs_512);
 }
 
+inline void multiply_constant_512b_using_gfni(__m512i *rhs, __m512i* result ){
+    __m512i rhs_512 = _mm512_load_si512(rhs);
+    *result = gfni_mul_const_16( rhs_512);
+}
 
-#define NUM_INPUTS 16        // Number of 128-bit numbers
-#define BYTES_IN_128BIT 16   // 16 bytes in a 128-bit number
+#define NUM_INPUTS 64        
+#define BYTES_IN_128BIT 16   
+#define BYTES_IN_512BIT 64
 #define SLICED_OUTPUTS 16
 
 
 //////////////////////////////////////////////////////
-// Byte Slicing: Convert 8 x 128-bit inputs to 16 rows of 64 bits
+// Byte Slicing: Convert 64 x 128-bit inputs to 16 rows of 512 bits
 //////////////////////////////////////////////////////
 inline void byte_slice(uint128_t input[NUM_INPUTS], uint64_t output[SLICED_OUTPUTS]) {
     // Cast the input to uint8_t* for easier access to bytes
@@ -234,7 +131,6 @@ inline void byte_slice(uint128_t input[NUM_INPUTS], uint64_t output[SLICED_OUTPU
             // the print the index being accesses
             // int index_to = byte_index * NUM_INPUTS + i;
             // int index_from = i * BYTES_IN_128BIT + byte_index;
-            // printf("index to: %d, from: %d\n", index_to, index_from);
             output_bytes[byte_index * NUM_INPUTS + i] = input_bytes[i * BYTES_IN_128BIT + byte_index];
         }
     }
@@ -242,7 +138,7 @@ inline void byte_slice(uint128_t input[NUM_INPUTS], uint64_t output[SLICED_OUTPU
 }
 
 //////////////////////////////////////////////////////
-// Un-byte Slicing: Convert 16 rows of 64 bits back to 8 x 128-bit inputs
+// Un-byte Slicing:
 //////////////////////////////////////////////////////
 inline void un_byte_slice(uint64_t input[SLICED_OUTPUTS], uint128_t output[NUM_INPUTS]) {
     // Cast the input to uint8_t* for easier access to bytes
@@ -258,8 +154,112 @@ inline void un_byte_slice(uint64_t input[SLICED_OUTPUTS], uint128_t output[NUM_I
         }
     }
 }
+//////////////////////////////////////////////////////
+// Byte Slicing: Convert 64 x 128-bit inputs to 16 rows of 512 bits
+//////////////////////////////////////////////////////
+void byte_slice_avx(__m512i *input, __m512i *output) {
+    // Cast the input and output arrays to uint8_t* for byte-wise access
+    uint8_t* input_bytes = (uint8_t*)input;
+    uint8_t* output_bytes = (uint8_t*)output;
+
+    // Loop over each byte index (0 to 15)
+    for (int byte_index = 0; byte_index < BYTES_IN_128BIT; byte_index++) {
+        // Collect the bytes from each input vector at the current byte position
+        uint8_t temp_bytes[64];
+
+        for (int i = 0; i < NUM_INPUTS; i++) {
+            temp_bytes[i] = input_bytes[i * BYTES_IN_128BIT + byte_index];
+        }
+
+        // Load the 64 bytes into a 512-bit vector
+        __m512i vec = _mm512_loadu_si512((__m512i*)temp_bytes);
+
+        // Store the vector into the output array
+        _mm512_store_si512((__m512i*)&output_bytes[byte_index * NUM_INPUTS], vec);
+    }
+
+}
+
+inline __m512i wrapper_mm512_xor_si512(__m512i input_1, __m512i input_2){
+    // __m512i random;
+    // return random;  
+    __m512i lhs_512 = _mm512_load_si512(&input_1);
+    __m512i rhs_512 = _mm512_load_si512(&input_2);
+    return _mm512_xor_si512(lhs_512, rhs_512);
+}
+
+void byte_slice_avx_2_mul(__m512i *input_1, __m512i *input_2, __m512i *slice_output_1, __m512i *slice_output_2, __m512i *mul_level_0, __m512i *xor_level_0)  {
+    // Cast the input and output arrays to uint8_t* for byte-wise access
+    uint8_t* input_bytes_1 = (uint8_t*)input_1;
+    uint8_t* input_bytes_2 = (uint8_t*)input_2;
+    uint8_t* output_bytes_1 = (uint8_t*)slice_output_1;
+    uint8_t* output_bytes_2 = (uint8_t*)slice_output_2;
+    uint8_t* mul_bytes = (uint8_t*)mul_level_0;
+    uint8_t* xor_bytes = (uint8_t*)xor_level_0;
 
 
+    // Loop over each byte index (0 to 15)
+    for (int byte_index = 0; byte_index < BYTES_IN_128BIT; byte_index++) {
+        // Collect the bytes from each input vector at the current byte position
+        uint8_t temp_bytes_1[64];
+        uint8_t temp_bytes_2[64];
+        // __m512i prev_mul_vec = _mm512_set1_epi8(0);
+
+        for (int i = 0; i < NUM_INPUTS; i++) {
+            temp_bytes_1[i] = input_bytes_1[i * BYTES_IN_128BIT + byte_index];
+            temp_bytes_2[i] = input_bytes_2[i * BYTES_IN_128BIT + byte_index];
+        }
+
+        // Load the 64 bytes into a 512-bit vector
+        __m512i vec_1 = _mm512_loadu_si512((__m512i*)temp_bytes_1);
+        __m512i vec_2 = _mm512_loadu_si512((__m512i*)temp_bytes_2);
+        __m512i mul_vec = gfni_mul(vec_1, vec_2);
+
+        // Store the vector into the output array
+        _mm512_store_si512((__m512i*)&output_bytes_1[byte_index * NUM_INPUTS], vec_1);
+        _mm512_store_si512((__m512i*)&output_bytes_2[byte_index * NUM_INPUTS], vec_2);
+        _mm512_store_si512((__m512i*)&mul_bytes[byte_index * NUM_INPUTS], mul_vec);
+
+    }
+
+}
+
+
+//////////////////////////////////////////////////////
+// Un-byte Slicing: Convert 16 rows of 512 bits back to 64 x 128-bit inputs
+//////////////////////////////////////////////////////
+inline void un_byte_slice_avx(uint64_t input[SLICED_OUTPUTS], uint128_t output[NUM_INPUTS]) {
+    uint8_t (*input_matrix)[16] = (uint8_t (*)[16])input;
+    uint8_t (*output_matrix)[64] = (uint8_t (*)[64])output;
+
+    for (int i = 0; i < 16; i++) {
+        // For each byte position i (from 0 to 15)
+        for (int j = 0; j < 64; j += 64 / 4) {
+            // Process 16 inputs at a time
+            __m512i row = _mm512_set_epi8(
+                input_matrix[j + 15][i], input_matrix[j + 14][i], input_matrix[j + 13][i], input_matrix[j + 12][i],
+                input_matrix[j + 11][i], input_matrix[j + 10][i], input_matrix[j + 9][i], input_matrix[j + 8][i],
+                input_matrix[j + 7][i], input_matrix[j + 6][i], input_matrix[j + 5][i], input_matrix[j + 4][i],
+                input_matrix[j + 3][i], input_matrix[j + 2][i], input_matrix[j + 1][i], input_matrix[j + 0][i],
+                input_matrix[j + 15][i], input_matrix[j + 14][i], input_matrix[j + 13][i], input_matrix[j + 12][i],
+                input_matrix[j + 11][i], input_matrix[j + 10][i], input_matrix[j + 9][i], input_matrix[j + 8][i],
+                input_matrix[j + 7][i], input_matrix[j + 6][i], input_matrix[j + 5][i], input_matrix[j + 4][i],
+                input_matrix[j + 3][i], input_matrix[j + 2][i], input_matrix[j + 1][i], input_matrix[j + 0][i],
+                input_matrix[j + 15][i], input_matrix[j + 14][i], input_matrix[j + 13][i], input_matrix[j + 12][i],
+                input_matrix[j + 11][i], input_matrix[j + 10][i], input_matrix[j + 9][i], input_matrix[j + 8][i],
+                input_matrix[j + 7][i], input_matrix[j + 6][i], input_matrix[j + 5][i], input_matrix[j + 4][i],
+                input_matrix[j + 3][i], input_matrix[j + 2][i], input_matrix[j + 1][i], input_matrix[j + 0][i],
+                input_matrix[j + 15][i], input_matrix[j + 14][i], input_matrix[j + 13][i], input_matrix[j + 12][i],
+                input_matrix[j + 11][i], input_matrix[j + 10][i], input_matrix[j + 9][i], input_matrix[j + 8][i],
+                input_matrix[j + 7][i], input_matrix[j + 6][i], input_matrix[j + 5][i], input_matrix[j + 4][i],
+                input_matrix[j + 3][i], input_matrix[j + 2][i], input_matrix[j + 1][i], input_matrix[j + 0][i]
+            );
+
+            // Store the row into the output matrix
+            _mm512_storeu_si512((__m512i*)&output_matrix[i][j], row);
+        }
+    }
+}
 
 // since all the input is sequential we need to find the next block from the adjacent data block in the sequetial input. 
 // for example if every data point is onnly one block deep. then width_to_adjacent_block = 1. if every data point is 2 blocks deep then width_to_adjacent_block = 2.
