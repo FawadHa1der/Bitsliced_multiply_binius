@@ -2,7 +2,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <time.h>
-
+#include <stdlib.h>
+#include <assert.h>
+#include <string.h>
 typedef struct {
     uint64_t low;
     uint64_t high;
@@ -206,6 +208,544 @@ uint64_t binmul64(uint64_t v1, uint64_t v2, uint32_t length, bool is_constant) {
 }
 
 
+// -----------------------------------------------------------------------------
+//  Build the 128×128 constant‐times matrix for C.
+//    cols[j] = C * (1 << j),  j = 0..127
+// -----------------------------------------------------------------------------
+void build_matrix128( uint128_t C, uint128_t cols[128] )
+{
+    for ( int j = 0; j < 128; ++j )
+    {
+        uint128_t E;
+        if ( j < 64 )
+        {
+            E.low  = (uint64_t)1 << j;
+            E.high = 0;
+        }
+        else
+        {
+            E.low  = 0;
+            E.high = (uint64_t)1 << (j - 64);
+        }
+        cols[j] = binmul128( C, E, 128 );
+    }
+}
+
+
+// Transpose the 128×128 bit–matrix in “cols” into “rows”.
+// rows[i][j] = cols[j][i]
+static inline void transpose128( const uint128_t cols[128],
+                                 uint128_t       rows[128] )
+{
+    for ( int i = 0; i < 128; ++i )
+    {
+        uint64_t lo = 0, hi = 0;
+
+        // Build row i, bit by bit:
+        for ( int j = 0; j < 128; ++j )
+        {
+            // extract bit _i_ from column j
+            unsigned b;
+            if ( i < 64 )
+                b = (cols[j].low  >> i) & 1;
+            else
+                b = (cols[j].high >> (i - 64)) & 1;
+
+            // scatter it into row[i] at position j
+            if ( j < 64 )
+                lo |= (uint64_t)b << j;
+            else
+                hi |= (uint64_t)b << (j - 64);
+        }
+
+        rows[i].low  = lo;
+        rows[i].high = hi;
+    }
+}
+// -----------------------------------------------------------------------------
+//  Multiply X by C via the precomputed columns:
+//    result = XOR_{j : bit j of X is 1} cols[j].
+// -----------------------------------------------------------------------------
+uint128_t mul_via_matrix( const uint128_t cols[128], uint128_t X )
+{
+    // 1) Initialize the accumulator to zero
+    //
+    uint128_t result = { 0, 0 };
+
+    // 2) As long as X has any 1-bit left…
+    //
+    while ( X.low  != 0  ||  X.high != 0 )
+    {
+        unsigned idx;
+
+        // 3) Find the index of the *lowest* set bit in X
+        //
+        //    - __builtin_ctzll(v) returns “count trailing zeros” in a 64-bit word.
+        //      If v =   0b...0101000,  ctzll(v) = 3 (the 0-based position of that single 1).
+        //
+        if ( X.low != 0 )
+        {
+            // 3a) If any bit in the low half is 1, pick that first
+            idx = __builtin_ctzll( X.low );
+        }
+        else
+        {
+            // 3b) Otherwise look in the high half, but add 64 to index bits 64–127
+            idx = 64U + __builtin_ctzll( X.high );
+        }
+
+        // 4) XOR in the precomputed column for that bit-position
+        //
+        //    “cols[idx]” is the 128-bit vector = C · E_idx,
+        //    so XOR’ing it accumulates C·(sum of all chosen E_idx) = C·X.
+        //
+        result.low  ^= cols[idx].low;
+        result.high ^= cols[idx].high;
+
+        // 5) Clear that lowest set bit so we’ll move on to the next one
+        //
+        if ( idx < 64 )
+            X.low  &= X.low  - 1;  // trick: v & (v−1) clears the least significant 1
+        else
+            X.high &= X.high - 1;
+    }
+
+    // 6) When X==0, we’ve XOR’d in every column whose bit was 1 → final product
+    return result;
+}
+
+uint128_t mul_via_matrix_rows( const uint128_t rows[128], uint128_t X )
+{
+  uint128_t result = { 0, 0 };
+
+  for ( int i = 0; i < 128; ++i )
+  {
+    // 1) mask off only the X-bits this row cares about
+    uint64_t lo = rows[i].low  & X.low;
+    uint64_t hi = rows[i].high & X.high;
+
+    // 2) compute parity of those 128 bits
+    //    __builtin_parityll returns popcount(x)&1
+    unsigned bit = __builtin_parityll( lo ) ^ __builtin_parityll( hi );
+
+    // 3) scatter that 1-bit into the correct position of result
+    if ( bit )
+    {
+      if ( i < 64 )
+        result.low  |= ((uint64_t)1) << i;
+      else
+        result.high |= ((uint64_t)1) << (i - 64);
+    }
+  }
+
+  return result;
+}
+
+
+void mul_via_matrix_rows_bitsliced( const uint128_t rows[128],
+                                    const uint128_t X[128],
+                                          uint128_t out[128] )
+{
+  // For each output bit i = 0..127, compute the GF(2) dot-product:
+  //    out[i] = ⊕_{j | rows[i][j] == 1} X[j]
+  for ( int i = 0; i < 128; ++i )
+  {
+    // start accumulator at zero
+    uint128_t acc = {0,0};
+
+    // for columns 0..63, test rows[i].low
+    uint64_t row_lo = rows[i].low;
+    while ( row_lo )
+    {
+      // peel off lowest set bit
+      int j = __builtin_ctzll( row_lo );
+      row_lo &= row_lo - 1;
+      // XOR in that slice
+      acc.low  ^= X[j].low;
+      acc.high ^= X[j].high;
+    }
+
+    // for columns 64..127, test rows[i].high
+    uint64_t row_hi = rows[i].high;
+    while ( row_hi )
+    {
+      int k = __builtin_ctzll( row_hi );
+      row_hi &= row_hi - 1;
+      int j = 64 + k;
+      acc.low  ^= X[j].low;
+      acc.high ^= X[j].high;
+    }
+
+    out[i] = acc;
+  }
+}
+
+// -----------------------------------------------------------------------------
+//  Generate a “random” 128‐bit value by combining rand() calls
+// -----------------------------------------------------------------------------
+static uint128_t random_u128( void )
+{
+    uint128_t r;
+    r.low  = ((uint64_t)rand() << 32) ^ ((uint64_t)rand() << 16) ^ rand();
+    r.high = ((uint64_t)rand() << 32) ^ ((uint64_t)rand() << 16) ^ rand();
+    return r;
+}
+
+// -----------------------------------------------------------------------------
+//  Test that matrix128 + mul_via_matrix matches binmul128 for C
+// -----------------------------------------------------------------------------
+void test_matrix128( uint128_t C )
+{
+    uint128_t cols[128], rows[128];
+    build_matrix128( C, cols );
+    transpose128( cols, rows );
+
+    // 1) Check each basis vector
+    for ( int j = 0; j < 128; ++j )
+    {
+        uint128_t E = {0,0};
+        if ( j < 64 )   E.low  = (uint64_t)1 << j;
+        else            E.high = (uint64_t)1 << (j - 64);
+        uint128_t expect = binmul128( C, E, 128 );
+        // uint128_t actual = mul_via_matrix( cols, E );
+        uint128_t actual = mul_via_matrix_rows( rows, E );
+        assert( expect.low  == actual.low  );
+        assert( expect.high == actual.high );
+    }
+
+    // 2) Check random vectors
+    srand( 42 );
+    for ( int i = 0; i < 1000; ++i )
+    {
+        uint128_t X = random_u128();
+        uint128_t expect = binmul128( C, X, 128 );
+        uint128_t actual = mul_via_matrix( cols, X );
+        assert( expect.low  == actual.low  );
+        assert( expect.high == actual.high );
+    }
+
+    printf( "✅  matrix128 build & test passed for given constant C\n" );
+}
+
+// -----------------------------------------------------------
+//  2) Parallel run‐time multiply: bitsliced X[0..127] → Z[0..127].
+//     - X[j].bit[i] is bit-j of the i-th 128-bit input.
+//     - Z[k].bit[i] = bit-k of (C * (input_i)).
+// 
+//  Formula:
+//    for each output bit k and each parallel index i:
+//      Z[k][i] = ⨁_{j: M[k][j]=1} X[j][i]
+//
+//  Here we loop k then j, XOR’ing the entire 128-bit slice X[j] 
+//  into Z[k] whenever the matrix bit M[k][j] is 1.
+// -----------------------------------------------------------
+// void mul_via_matrix_bitsliced( const uint128_t cols[128],
+//                                 const uint128_t X[128],
+//                                       uint128_t Z[128] )
+// {
+//     // 1) Initialize the accumulator to zero
+//     //
+//     uint128_t result = { 0, 0 };
+
+//     // 2) As long as X has any 1-bit left…
+//     //
+//     while ( X.low  != 0  ||  X.high != 0 )
+//     {
+//         unsigned idx;
+
+//         // 3) Find the index of the *lowest* set bit in X
+//         //
+//         //    - __builtin_ctzll(v) returns “count trailing zeros” in a 64-bit word.
+//         //      If v =   0b...0101000,  ctzll(v) = 3 (the 0-based position of that single 1).
+//         //
+//         if ( X.low != 0 )
+//         {
+//             // 3a) If any bit in the low half is 1, pick that first
+//             idx = __builtin_ctzll( X.low );
+//         }
+//         else
+//         {
+//             // 3b) Otherwise look in the high half, but add 64 to index bits 64–127
+//             idx = 64U + __builtin_ctzll( X.high );
+//         }
+
+//         // 4) XOR in the precomputed column for that bit-position
+//         //
+//         //    “cols[idx]” is the 128-bit vector = C · E_idx,
+//         //    so XOR’ing it accumulates C·(sum of all chosen E_idx) = C·X.
+//         //
+//         result.low  ^= cols[idx].low;
+//         result.high ^= cols[idx].high;
+
+//         // 5) Clear that lowest set bit so we’ll move on to the next one
+//         //
+//         if ( idx < 64 )
+//             X.low  &= X.low  - 1;  // trick: v & (v−1) clears the least significant 1
+//         else
+//             X.high &= X.high - 1;
+//     }
+
+//     // 6) When X==0, we’ve XOR’d in every column whose bit was 1 → final product
+//     return result;
+// }
+
+void pre_calculate_lookup_table(uint128_t input[8], uint128_t output[256]) {
+    for (uint16_t s = 1; s < 256; ++s)
+    {
+        uint8_t lsb  = s & -s;                  // isolate lsb
+        uint8_t prev = s ^ lsb;                 // smaller subset
+        uint8_t idx  = __builtin_ctz(lsb);      // position 0…7
+
+        output[s].low = output[prev].low ^ input[idx].low;                // exactly ONE XOR
+        output[s].high = output[prev].high ^ input[idx].high;
+    }
+}
+
+void mul_via_matrix_bitsliced_four_russians_method( const uint128_t rows[128],
+                                const uint128_t X[128],
+                                      uint128_t Z[128] )
+{
+    // 1) Initialize the accumulator to zero
+    //
+    uint128_t lookup[256];
+    memset (lookup, 0, sizeof(lookup));
+
+    const int BYTE_SIZE = 8;
+    const int OUTER_LOOP = 128 / BYTE_SIZE; // 16 * 8 = 128 bits
+    memset (Z, 0, sizeof(uint128_t) * 128);
+
+    for (int i = 0; i < OUTER_LOOP; ++i)
+    {
+        pre_calculate_lookup_table(&X[i * BYTE_SIZE], lookup);
+        
+        for (int j = 0; j < 128; ++j)
+        {
+            uint8_t* curren_lookup_rows_bytes = &rows[j];
+            uint8_t idx = curren_lookup_rows_bytes[i];
+            Z[j].low ^= lookup[idx].low;
+            Z[j].high ^= lookup[idx].high;
+        }
+    }
+}
+
+void mul_via_matrix_bitsliced_simple( const uint128_t rows[128],
+                                const uint128_t X[128],
+                                      uint128_t Z[128] )
+{
+    // 1) Initialize the accumulator to zero
+    //
+    uint128_t lookup[256];
+    memset (lookup, 0, sizeof(lookup));
+
+    const int BYTE_SIZE = 8;
+    const int OUTER_LOOP = 128 / BYTE_SIZE; // 16 * 8 = 128 bits
+    const int INNER_LOOP = 128 / BYTE_SIZE; // 32 * 8 = 256 bits
+    // uint128_t Z [128 ];
+    // memset (Z, 0, sizeof(Z));
+    memset (Z, 0, sizeof(uint128_t) * 128);
+
+    for (int i = 0; i < 16; ++i)
+    {
+        // pre_calculate_lookup_table(&X[i * BYTE_SIZE], lookup);
+        for (int j = 0; j < 128; ++j)
+        {
+            uint8_t* current_lookup_rows_bytes = &rows[j];
+            current_lookup_rows_bytes += i * BYTE_SIZE; 
+            for (int k = 0; k < BYTE_SIZE; ++k)
+            {
+                // for every bit in current_lookup_rows_bytes[0]
+                bool bit = (current_lookup_rows_bytes[0] >> k) & 1;
+                if (bit)
+                {
+                    Z[j].low ^= X[ (i * BYTE_SIZE) + k].low;
+                    Z[j].high ^= X[ (i * BYTE_SIZE) + k].high;
+                }
+            }
+        }
+    }
+}
+
+
+
+// -----------------------------------------------------------
+//  Helpers to pack and unpack bitsliced representations:
+// -----------------------------------------------------------
+static uint128_t make_u128( uint64_t hi, uint64_t lo )
+{
+    return (uint128_t){ lo, hi };
+}
+
+
+// ─── PACK: IN[0..127] → bitslices X[0..127] ─────────────────────────────
+void pack_bitsliced( const uint128_t IN[128], uint128_t X[128] )
+{
+  for ( int j = 0; j < 128; ++j )
+  {
+    uint64_t lo = 0, hi = 0;
+
+    // for every input i, extract bit-j of IN[i] and scatter it
+    for ( int i = 0; i < 128; ++i )
+    {
+      unsigned b;
+      if ( j < 64 )
+        b = (IN[i].low  >> j) & 1;            // jth bit lives in .low
+      else
+        b = (IN[i].high >> (j - 64)) & 1;     // jth bit lives in .high
+
+      if ( i < 64 )
+        lo |= (uint64_t)b << i;              // bit-i of the slice.low
+      else
+        hi |= (uint64_t)b << (i - 64);       // bit-(i-64) of slice.high
+    }
+
+    X[j].low  = lo;
+    X[j].high = hi;
+  }
+}
+
+// ─── UNPACK: bitslices Z[0..127] → OUT[0..127] ─────────────────────────
+void unpack_bitsliced( const uint128_t Z[128], uint128_t OUT[128] )
+{
+  for ( int i = 0; i < 128; ++i )
+  {
+    uint64_t lo = 0, hi = 0;
+
+    // for each slice j, pull out bit-i and deposit into OUT[i]
+    for ( int j = 0; j < 128; ++j )
+    {
+      unsigned b;
+      if ( i < 64 )
+        b = (Z[j].low  >> i) & 1;            // slice.low bit-i
+      else
+        b = (Z[j].high >> (i - 64)) & 1;     // slice.high bit-(i-64)
+
+      if ( j < 64 )
+        lo |= (uint64_t)b << j;              // jth bit of OUT[i].low
+      else
+        hi |= (uint64_t)b << (j - 64);       // (j-64)th bit of OUT[i].high
+    }
+
+    OUT[i].low  = lo;
+    OUT[i].high = hi;
+  }
+}
+
+void mul_via_matrix_bitsliced_four_russians_method_cols(
+  const uint128_t cols[128],   // columns of the 128×128 bit-matrix
+  const uint128_t X   [128],   // bitsliced input
+        uint128_t Z   [128] )  // bitsliced output (zeroed by this call)
+{
+  const int BYTE_SIZE  = 8;
+  const int OUTER_LOOP = 128 / BYTE_SIZE;  // =16
+
+  // zero the outputs
+//   for ( int j = 0; j < 128; ++j )
+//     Z[j] = {0,0};
+
+  // for each 8-bit “chunk” of X
+  for ( int i = 0; i < OUTER_LOOP; ++i )
+  {
+    // build the 256-entry lookup table for X[i*8..i*8+7]
+    uint128_t lookup[256];
+    memset( lookup, 0, sizeof lookup );
+    pre_calculate_lookup_table( &X[i * BYTE_SIZE], lookup );
+
+    // for each output row j=0..127, gather its 8 bits from cols[ i*8+t ], t=0..7
+    for ( int j = 0; j < 128; ++j )
+    {
+      uint8_t idx = 0;
+      // build the byte idx whose bit-t is the j’th bit of column (i*8 + t)
+      for ( int t = 0; t < BYTE_SIZE; ++t )
+      {
+        int c = i * BYTE_SIZE + t;
+        bool bit = ( j < 64
+                   ? (cols[c].low  >> j) & 1u
+                   : (cols[c].high >> (j - 64)) & 1u );
+        idx |= bit << t;
+      }
+      // XOR in that precomputed partial product
+      Z[j].low  ^= lookup[idx].low;
+      Z[j].high ^= lookup[idx].high;
+    }
+  }
+}
+
+// -----------------------------------------------------------
+//  3) Test end‐to‐end on 128 random inputs:
+//     compare each OUT[i] against gf128_mul(C, IN[i]).
+// -----------------------------------------------------------
+void test_bitsliced( uint128_t C )
+{
+    uint128_t IN[128];
+    for ( int i = 0; i < 128; ++i )
+    {
+        IN[i].low  = ((uint64_t)rand() << 32) ^ ((uint64_t)rand() << 16) ^ rand();
+        IN[i].high = ((uint64_t)rand() << 32) ^ ((uint64_t)rand() << 16) ^ rand();
+    }
+
+    struct timespec t0, t1;
+    clock_gettime( CLOCK_MONOTONIC, &t0 );
+
+    //  3a) Build cols[]
+    uint128_t cols[128];
+    build_matrix128( C, cols );
+    //  3b) Transpose cols[] into rows[]
+    uint128_t rows[128];
+    transpose128( cols, rows );
+
+    // // lets transpose back and check if it is the same
+    // uint128_t cols_check[128];
+    // transpose128( rows, cols_check );
+    // for ( int i = 0; i < 128; ++i )
+    // {
+    //     assert( cols[i].low  == cols_check[i].low );
+    //     assert( cols[i].high == cols_check[i].high );
+    // }
+
+    //  3b) Make 128 random test‐vectors IN[i]
+
+    //  3c) Pack into bitsliced X[0..127]
+    uint128_t X[128], Z[128], OUT[128];
+    // memset( X, 0, sizeof(X) );
+    memset( Z, 0, sizeof(Z) );
+    pack_bitsliced( IN, X );
+
+    // //lets do a sanity check on the packed bitsliced X and unbitslice to see if it matches IN
+    // unpack_bitsliced( X, OUT );
+    // for ( int i = 0; i < 128; ++i )
+    // {
+    //     assert( IN[i].low  == OUT[i].low );
+    //     assert( IN[i].high == OUT[i].high );
+    // }
+
+    //  3d) Multiply all 128 in parallel
+    // mul_via_matrix_bitsliced_four_russians_method( rows, X, Z );
+    mul_via_matrix_bitsliced_four_russians_method( rows, X, Z ); 
+    // mul_via_matrix_bitsliced_four_russians_method_cols( cols, X, Z );
+    //  3e) Unpack back to OUT[i]
+    unpack_bitsliced( Z, OUT );
+    clock_gettime( CLOCK_MONOTONIC, &t1 );
+    double elapsed_ms = (t1.tv_sec  - t0.tv_sec ) * 1e3
+                      + (t1.tv_nsec - t0.tv_nsec) / 1e6;
+    printf( "[benchmark] multiply+unpack took %.3f ms\n", elapsed_ms );
+
+    //  3f) Check each one
+    for ( int i = 0; i < 128; ++i )
+    {
+        uint128_t expect = binmul128( C, IN[i], 128 );
+        // printf("IN[%d] = %016llx%016llx, OUT[%d] = %016llx%016llx, expect = %016llx%016llx\n",
+        //         i, IN[i].high, IN[i].low, i, OUT[i].high, OUT[i].low,
+        //         expect.high, expect.low);
+        // // pritn index
+        // printf("IN[%d] = %016llx%016llx, OUT[%d] = %016llx%016llx\n",
+        //         i, IN[i].high, IN[i].low, i, OUT[i].high, OUT[i].low);
+
+        assert( expect.low  == OUT[i].low  );
+        assert( expect.high == OUT[i].high );
+    }
+    printf( "✅ bitsliced test passed for constant C\n" );
+}
+
 void test_128(){
     // Example 128-bit numbers split into high and low 64-bit parts
     uint128_t v1 = {14143994781733811029ULL, 669260594276348690ULL};  // Example 128-bit number
@@ -279,6 +819,24 @@ void test_16(){
 // Main function to test the implementation
 int main() {
 //    test_16();
-    test_128();
+//    test_128();
+
+
+    // uint128_t C = {
+    //     .low  = 0xFEDCBA9876543210ULL,
+    //     .high = 0x0123456789ABCDEFULL
+    // };
+
+    // test_matrix128( C );
+
+
+
+    //  Example constant C:
+    uint128_t C = { 0xFEDCBA9876543210ULL, 0x0123456789ABCDEFULL };
+
+    //  Run the bitsliced self‐test:
+    srand(42);
+   test_bitsliced( C );
+
     return 0;
 }
