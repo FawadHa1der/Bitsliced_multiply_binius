@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+//neon
+#include <arm_neon.h>
 typedef struct {
     uint64_t low;
     uint64_t high;
@@ -117,7 +119,7 @@ uint128_t binmul128(uint128_t v1, uint128_t v2, uint32_t length) {
     R1R2.low = binmul64(R1, R2, halflen, false);
     uint64_t R1R2_high_input = (1ULL << quarterlen);
     uint128_t R1R2_high;
-    R1R2_high.high = 0;
+       R1R2_high.high = 0;
     R1R2_high.low = binmul64(R1R2_high_input, R1R2.low, halflen, false);
     
 
@@ -490,16 +492,83 @@ void test_matrix128( uint128_t C )
 // }
 
 void pre_calculate_lookup_table(uint128_t input[8], uint128_t output[256]) {
+    // populate all the prev and idx values into arrays and print them after the loop
+static uint8_t prev_arr[256] = { 0x00, 0x00, 0x00, 0x02, 0x00, 0x04, 0x04, 0x06, 0x00, 0x08, 0x08, 0x0a, 0x08, 0x0c, 0x0c, 0x0e, 0x00, 0x10, 0x10, 0x12, 0x10, 0x14, 0x14, 0x16, 0x10, 0x18, 0x18, 0x1a, 0x18, 0x1c, 0x1c, 0x1e, 0x00, 0x20, 0x20, 0x22, 0x20, 0x24, 0x24, 0x26, 0x20, 0x28, 0x28, 0x2a, 0x28, 0x2c, 0x2c, 0x2e, 0x20, 0x30, 0x30, 0x32, 0x30, 0x34, 0x34, 0x36, 0x30, 0x38, 0x38, 0x3a, 0x38, 0x3c, 0x3c, 0x3e, 0x00, 0x40, 0x40, 0x42, 0x40, 0x44, 0x44, 0x46, 0x40, 0x48, 0x48, 0x4a, 0x48, 0x4c, 0x4c, 0x4e, 0x40, 0x50, 0x50, 0x52, 0x50, 0x54, 0x54, 0x56, 0x50, 0x58, 0x58, 0x5a, 0x58, 0x5c, 0x5c, 0x5e, 0x40, 0x60, 0x60, 0x62, 0x60, 0x64, 0x64, 0x66, 0x60, 0x68, 0x68, 0x6a, 0x68, 0x6c, 0x6c, 0x6e, 0x60, 0x70, 0x70, 0x72, 0x70, 0x74, 0x74, 0x76, 0x70, 0x78, 0x78, 0x7a, 0x78, 0x7c, 0x7c, 0x7e, 0x00, 0x80, 0x80, 0x82, 0x80, 0x84, 0x84, 0x86, 0x80, 0x88, 0x88, 0x8a, 0x88, 0x8c, 0x8c, 0x8e, 0x80, 0x90, 0x90, 0x92, 0x90, 0x94, 0x94, 0x96, 0x90, 0x98, 0x98, 0x9a, 0x98, 0x9c, 0x9c, 0x9e, 0x80, 0xa0, 0xa0, 0xa2, 0xa0, 0xa4, 0xa4, 0xa6, 0xa0, 0xa8, 0xa8, 0xaa, 0xa8, 0xac, 0xac, 0xae, 0xa0, 0xb0, 0xb0, 0xb2, 0xb0, 0xb4, 0xb4, 0xb6, 0xb0, 0xb8, 0xb8, 0xba, 0xb8, 0xbc, 0xbc, 0xbe, 0x80, 0xc0, 0xc0, 0xc2, 0xc0, 0xc4, 0xc4, 0xc6, 0xc0, 0xc8, 0xc8, 0xca, 0xc8, 0xcc, 0xcc, 0xce, 0xc0, 0xd0, 0xd0, 0xd2, 0xd0, 0xd4, 0xd4, 0xd6, 0xd0, 0xd8, 0xd8, 0xda, 0xd8, 0xdc, 0xdc, 0xde, 0xc0, 0xe0, 0xe0, 0xe2, 0xe0, 0xe4, 0xe4, 0xe6, 0xe0, 0xe8, 0xe8, 0xea, 0xe8, 0xec, 0xec, 0xee, 0xe0, 0xf0, 0xf0, 0xf2, 0xf0, 0xf4, 0xf4, 0xf6, 0xf0, 0xf8, 0xf8, 0xfa, 0xf8, 0xfc, 0xfc, 0xfe, };
+static uint8_t idx_arr[256] = { 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x05, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x06, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x05, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x07, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x05, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x06, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x05, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, };
     for (uint16_t s = 1; s < 256; ++s)
     {
-        uint8_t lsb  = s & -s;                  // isolate lsb
-        uint8_t prev = s ^ lsb;                 // smaller subset
-        uint8_t idx  = __builtin_ctz(lsb);      // position 0…7
+        // uint8_t lsb  = s & -s;                  // isolate lsb
+        // uint8_t prev = s ^ lsb;                 // smaller subset
+        // uint8_t idx  = __builtin_ctz(lsb);      // position 0…7
 
+        // prev_arr[s] = prev;
+        // idx_arr[s]  = idx;
+        uint8_t  prev = prev_arr[s] ; // store the previous value
+        uint8_t  idx = idx_arr[s];    // store the index value
+
+        
         output[s].low = output[prev].low ^ input[idx].low;                // exactly ONE XOR
         output[s].high = output[prev].high ^ input[idx].high;
     }
+    // print our the prev and idx arrays so that I can easily just copy it into as a static array in C code. It should should be syntactically correct C code.
+    printf("static uint8_t prev[256] = { ");
+    for (int i = 0; i < 256; ++i) {
+        printf("0x%02x, ", prev_arr[i]);
+    }
+    printf("};\n");
+    printf("static uint8_t idx[256] = { ");
+    for (int i = 0; i < 256; ++i) {
+        printf("0x%02x, ", idx_arr[i]);
+    }
+    printf("};\n");
 }
+
+void pre_calculate_lookup_table_128bit(const uint32_t input[8], uint32_t output[256]) {
+
+	static const uint8_t prev_arr[256] = { 0x00, 0x00, 0x00, 0x02, 0x00, 0x04, 0x04, 0x06, 0x00, 0x08, 0x08, 0x0a, 0x08, 0x0c, 0x0c, 0x0e, 0x00, 0x10, 0x10, 0x12, 0x10, 0x14, 0x14, 0x16, 0x10, 0x18, 0x18, 0x1a, 0x18, 0x1c, 0x1c, 0x1e, 0x00, 0x20, 0x20, 0x22, 0x20, 0x24, 0x24, 0x26, 0x20, 0x28, 0x28, 0x2a, 0x28, 0x2c, 0x2c, 0x2e, 0x20, 0x30, 0x30, 0x32, 0x30, 0x34, 0x34, 0x36, 0x30, 0x38, 0x38, 0x3a, 0x38, 0x3c, 0x3c, 0x3e, 0x00, 0x40, 0x40, 0x42, 0x40, 0x44, 0x44, 0x46, 0x40, 0x48, 0x48, 0x4a, 0x48, 0x4c, 0x4c, 0x4e, 0x40, 0x50, 0x50, 0x52, 0x50, 0x54, 0x54, 0x56, 0x50, 0x58, 0x58, 0x5a, 0x58, 0x5c, 0x5c, 0x5e, 0x40, 0x60, 0x60, 0x62, 0x60, 0x64, 0x64, 0x66, 0x60, 0x68, 0x68, 0x6a, 0x68, 0x6c, 0x6c, 0x6e, 0x60, 0x70, 0x70, 0x72, 0x70, 0x74, 0x74, 0x76, 0x70, 0x78, 0x78, 0x7a, 0x78, 0x7c, 0x7c, 0x7e, 0x00, 0x80, 0x80, 0x82, 0x80, 0x84, 0x84, 0x86, 0x80, 0x88, 0x88, 0x8a, 0x88, 0x8c, 0x8c, 0x8e, 0x80, 0x90, 0x90, 0x92, 0x90, 0x94, 0x94, 0x96, 0x90, 0x98, 0x98, 0x9a, 0x98, 0x9c, 0x9c, 0x9e, 0x80, 0xa0, 0xa0, 0xa2, 0xa0, 0xa4, 0xa4, 0xa6, 0xa0, 0xa8, 0xa8, 0xaa, 0xa8, 0xac, 0xac, 0xae, 0xa0, 0xb0, 0xb0, 0xb2, 0xb0, 0xb4, 0xb4, 0xb6, 0xb0, 0xb8, 0xb8, 0xba, 0xb8, 0xbc, 0xbc, 0xbe, 0x80, 0xc0, 0xc0, 0xc2, 0xc0, 0xc4, 0xc4, 0xc6, 0xc0, 0xc8, 0xc8, 0xca, 0xc8, 0xcc, 0xcc, 0xce, 0xc0, 0xd0, 0xd0, 0xd2, 0xd0, 0xd4, 0xd4, 0xd6, 0xd0, 0xd8, 0xd8, 0xda, 0xd8, 0xdc, 0xdc, 0xde, 0xc0, 0xe0, 0xe0, 0xe2, 0xe0, 0xe4, 0xe4, 0xe6, 0xe0, 0xe8, 0xe8, 0xea, 0xe8, 0xec, 0xec, 0xee, 0xe0, 0xf0, 0xf0, 0xf2, 0xf0, 0xf4, 0xf4, 0xf6, 0xf0, 0xf8, 0xf8, 0xfa, 0xf8, 0xfc, 0xfc, 0xfe, };
+	static const uint8_t idx_arr[256] = { 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x05, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x06, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x05, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x07, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x05, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x06, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x05, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, };
+
+	#pragma unroll
+    for (uint16_t s = 1; s < 256; ++s)
+    {
+        // uint8_t lsb  = s & -s;                  // isolate lsb
+        // uint8_t prev = s ^ lsb;                 // smaller subset
+        // uint8_t idx  = __builtin_ctz(lsb);      // position 0…7
+        uint8_t  prev = prev_arr[s] ; // store the previous value
+        uint8_t  idx = idx_arr[s];    // store the index value
+
+        output[s] = output[prev] ^ input[idx];                // exactly ONE XOR
+ 	}
+}
+
+
+void gpu_mul_via_matrix_bitsliced_four_russians_128bit( const uint128_t rows[128],
+                                const uint32_t X[128],
+                                      uint32_t Z[128] )
+{
+    // 1) Initialize the accumulator to zero
+    //
+
+    uint32_t lookup[256];
+    memset (lookup, 0, sizeof(lookup));
+
+    const int BYTE_SIZE = 8;
+    const int OUTER_LOOP = 128 / BYTE_SIZE; // 16 * 8 = 128 bits
+
+    for (int i = 0; i < OUTER_LOOP; ++i)
+    {
+        pre_calculate_lookup_table_128bit(&X[i * BYTE_SIZE], lookup);
+        
+        for (int j = 0; j < 128; ++j)
+        {
+            uint8_t* curren_lookup_rows_bytes = (uint8_t*)&rows[j];
+            uint8_t idx = curren_lookup_rows_bytes[i];
+            Z[j] ^= lookup[idx];
+        }
+    }
+}
+
+
 
 void mul_via_matrix_bitsliced_four_russians_method( const uint128_t rows[128],
                                 const uint128_t X[128],
@@ -570,9 +639,86 @@ void mul_via_matrix_bitsliced_simple( const uint128_t rows[128],
 // -----------------------------------------------------------
 //  Helpers to pack and unpack bitsliced representations:
 // -----------------------------------------------------------
-static uint128_t make_u128( uint64_t hi, uint64_t lo )
-{
-    return (uint128_t){ lo, hi };
+// static uint128_t make_u128( uint64_t hi, uint64_t lo )
+// {
+//     return (uint128_t){ lo, hi };
+// }
+
+// void pack_bitsliced_32bit( const uint32_t IN[128], uint32_t X[128] )
+// {
+//   for ( int j = 0; j < 128; ++j )
+//   {
+//     uint64_t lo = 0, hi = 0;
+
+//     // for every input i, extract bit-j of IN[i] and scatter it
+//     for ( int i = 0; i < 128; ++i )
+//     {
+//       unsigned b;
+//       if ( j < 64 )
+//         b = (IN[i].low  >> j) & 1;            // jth bit lives in .low
+//       else
+//         b = (IN[i].high >> (j - 64)) & 1;     // jth bit lives in .high
+
+//       if ( i < 64 )
+//         lo |= (uint64_t)b << i;              // bit-i of the slice.low
+//       else
+//         hi |= (uint64_t)b << (i - 64);       // bit-(i-64) of slice.high
+//     }
+
+//     X[j].low  = lo;
+//     X[j].high = hi;
+//   }
+// }
+
+#define BITSLICING_BITS_WIDTH 128
+#define INTS_PER_UNBITSLICED_VALUE 4
+
+ void transpose32(uint32_t A[32]) {
+    int j, k;
+    uint32_t m, t;
+
+    m = 0x0000FFFF;
+    for (j = 16; j != 0; j = j >> 1, m = m ^ (m << j)) {
+        for (k = 0; k < 32; k = (k + j + 1) & ~j) {
+            t = ((A[k] >> j) ^ (A[k + j])) & m;
+            A[k] = A[k] ^ (t << j);
+            A[k + j] = A[k + j] ^ (t);
+        }
+    }
+}
+
+void bitslice_transpose(uint32_t arr_bitsliced[BITSLICING_BITS_WIDTH]) {
+		uint32_t tmp[BITSLICING_BITS_WIDTH];  // arr_bitsliced should also be of this size
+
+		memcpy(tmp, arr_bitsliced, BITSLICING_BITS_WIDTH * sizeof(uint32_t));
+
+		for (int i = 0; i < BITSLICING_BITS_WIDTH; ++i) {
+			int idx_of_square_transpose = i % INTS_PER_UNBITSLICED_VALUE;
+			int idx_within_square_transpose = i / INTS_PER_UNBITSLICED_VALUE;
+			int unbitsliced_origin_of_chunk = 32 * idx_of_square_transpose + idx_within_square_transpose;
+			arr_bitsliced[unbitsliced_origin_of_chunk] = tmp[i];
+		}
+
+		for (int square_chunk = 0; square_chunk < INTS_PER_UNBITSLICED_VALUE; ++square_chunk) {
+			transpose32(arr_bitsliced + 32 * square_chunk);
+		}
+	}
+
+ void bitslice_untranspose(uint32_t arr_bitsliced[BITSLICING_BITS_WIDTH]) {
+    uint32_t tmp[BITSLICING_BITS_WIDTH];  // arr_bitsliced should also be of this size
+
+    memcpy(tmp, arr_bitsliced, BITSLICING_BITS_WIDTH * sizeof(uint32_t));
+
+    for (int square_chunk = 0; square_chunk < INTS_PER_UNBITSLICED_VALUE; ++square_chunk) {
+        transpose32(tmp + 32 * square_chunk);
+    }
+
+    for (int i = 0; i < BITSLICING_BITS_WIDTH; ++i) {
+        int chunk_of_number_idx = i / 32;
+        int number_idx = i % 32;
+        int unbitsliced_destination_of_chunk = INTS_PER_UNBITSLICED_VALUE * number_idx + chunk_of_number_idx;
+        arr_bitsliced[unbitsliced_destination_of_chunk] = tmp[i];
+    }
 }
 
 
@@ -670,17 +816,98 @@ void mul_via_matrix_bitsliced_four_russians_method_cols(
   }
 }
 
+static inline uint64_t rand64(void) {
+  return ((uint64_t)rand() << 33) ^ ((uint64_t)rand() << 17) ^ (uint64_t)rand();
+}
+
+static inline __uint128_t rand_u128(void) {
+  __uint128_t lo = (__uint128_t)rand64();
+  __uint128_t hi = (__uint128_t)rand64();
+  return (hi << 64) | lo;
+}
+
+static inline void u128_to_bytes_le(__uint128_t x, uint8_t b[16]) {
+  // Little-endian byte order: b[0] = bits 7..0, ..., b[15] = bits 127..120
+  for (int i = 0; i < 16; ++i) b[i] = (uint8_t)(x >> (8*i));
+}
+
+static inline __uint128_t make_u128(uint64_t hi, uint64_t lo) {
+  return ((__uint128_t)hi << 64) | (__uint128_t)lo;
+}
+
+static inline void split_u128(__uint128_t x, uint64_t *hi, uint64_t *lo) {
+  *lo = (uint64_t)x;
+  *hi = (uint64_t)(x >> 64);
+}
+
+static inline uint64x2_t load_u128_as_u64x2(const __uint128_t *src) {
+  uint64_t lo = (uint64_t)(*src);
+  uint64_t hi = (uint64_t)((*src) >> 64);
+  uint64x2_t v = vdupq_n_u64(0);
+  v = vsetq_lane_u64(lo, v, 0);
+  v = vsetq_lane_u64(hi, v, 1);
+  return v;
+}
+
+static void fill_random_cols(__uint128_t cols[128]) {
+  for (int j = 0; j < 128; ++j) cols[j] = rand_u128();
+}
+
+static double ms_since(struct timespec a, struct timespec b) {
+  return (b.tv_sec - a.tv_sec) * 1e3 + (b.tv_nsec - a.tv_nsec) / 1e6;
+}
+
+
+
+void build_byte_tables_from_cols(const __uint128_t cols[128], __uint128_t T[16][256])
+{
+  for (int pos = 0; pos < 16; ++pos) {
+    T[pos][0] = 0;
+    for (int v = 1; v < 256; ++v) {
+      int lsb = v & -v;
+      int bit = __builtin_ctz(lsb);               // 0..7
+      T[pos][v] = T[pos][v ^ lsb] ^ cols[pos*8 + bit];
+    }
+  }
+}
+
+static __uint128_t mul_via_matrix_cols_scalar_simple(const __uint128_t cols[128],
+                                              __uint128_t X) {
+  __uint128_t y = 0;
+  for (int j = 0; j < 128; ++j) {
+    if ((X >> j) & 1) y ^= cols[j];
+  }
+  return y;
+}
+
+
+__uint128_t mul_const_neon_bytes(const __uint128_t T[16][256], __uint128_t X)
+{
+  uint8_t xb[16];
+  u128_to_bytes_le(X, xb); // may be we can remove this?
+
+  uint64x2_t acc = vdupq_n_u64(0);
+  for (int pos = 0; pos < 16; ++pos) {
+    uint64x2_t t = vld1q_u64((const uint64_t*)&T[pos][ xb[pos] ]);
+    acc = veorq_u64(acc, t);
+  }
+
+  uint64_t out64[2];
+  vst1q_u64(out64, acc);
+  __uint128_t y = (__uint128_t)out64[0] | ((__uint128_t)out64[1] << 64);
+  return y;
+}
+
 // -----------------------------------------------------------
 //  3) Test end‐to‐end on 128 random inputs:
 //     compare each OUT[i] against gf128_mul(C, IN[i]).
 // -----------------------------------------------------------
 void test_bitsliced( uint128_t C )
 {
-    uint128_t IN[128];
+    uint32_t IN[128];
     for ( int i = 0; i < 128; ++i )
     {
-        IN[i].low  = ((uint64_t)rand() << 32) ^ ((uint64_t)rand() << 16) ^ rand();
-        IN[i].high = ((uint64_t)rand() << 32) ^ ((uint64_t)rand() << 16) ^ rand();
+        IN[i] = ((uint64_t)rand() << 32) ^ ((uint64_t)rand() << 16) ^ rand();
     }
 
     struct timespec t0, t1;
@@ -705,34 +932,40 @@ void test_bitsliced( uint128_t C )
     //  3b) Make 128 random test‐vectors IN[i]
 
     //  3c) Pack into bitsliced X[0..127]
-    uint128_t X[128], Z[128], OUT[128];
+    uint32_t X[128], Z[128], OUT[128], IN_UNBITSLICED[128];
     // memset( X, 0, sizeof(X) );
     memset( Z, 0, sizeof(Z) );
-    pack_bitsliced( IN, X );
+    memset( OUT, 0, sizeof(OUT) );
+    // memcpy ( OUT, IN, sizeof(OUT) );
+    memcpy ( IN_UNBITSLICED, IN, sizeof(IN_UNBITSLICED) );
+    bitslice_transpose( IN ); // Transpose the input to bitsliced format
 
-    // //lets do a sanity check on the packed bitsliced X and unbitslice to see if it matches IN
-    // unpack_bitsliced( X, OUT );
+    // pack_bitsliced( IN, X );
+
+    //lets do a sanity check on the packed bitsliced X and unbitslice to see if it matches IN
+    // bitslice_untranspose( IN );
     // for ( int i = 0; i < 128; ++i )
     // {
-    //     assert( IN[i].low  == OUT[i].low );
-    //     assert( IN[i].high == OUT[i].high );
+    //     assert( IN[i]  == OUT[i] );
     // }
 
     //  3d) Multiply all 128 in parallel
     // mul_via_matrix_bitsliced_four_russians_method( rows, X, Z );
-    mul_via_matrix_bitsliced_four_russians_method( rows, X, Z ); 
+    gpu_mul_via_matrix_bitsliced_four_russians_128bit( rows, IN, OUT ); 
     // mul_via_matrix_bitsliced_four_russians_method_cols( cols, X, Z );
     //  3e) Unpack back to OUT[i]
-    unpack_bitsliced( Z, OUT );
+    bitslice_untranspose( OUT );
     clock_gettime( CLOCK_MONOTONIC, &t1 );
     double elapsed_ms = (t1.tv_sec  - t0.tv_sec ) * 1e3
                       + (t1.tv_nsec - t0.tv_nsec) / 1e6;
     printf( "[benchmark] multiply+unpack took %.3f ms\n", elapsed_ms );
 
     //  3f) Check each one
-    for ( int i = 0; i < 128; ++i )
+    uint128_t *original_unbitsliced = (uint128_t *)IN_UNBITSLICED;
+    uint128_t *actual128arr = (uint128_t *)OUT;
+    for ( int i = 0; i < 32; ++i )
     {
-        uint128_t expect = binmul128( C, IN[i], 128 );
+        uint128_t expect = binmul128( C, original_unbitsliced[i], 128 );
         // printf("IN[%d] = %016llx%016llx, OUT[%d] = %016llx%016llx, expect = %016llx%016llx\n",
         //         i, IN[i].high, IN[i].low, i, OUT[i].high, OUT[i].low,
         //         expect.high, expect.low);
@@ -740,8 +973,8 @@ void test_bitsliced( uint128_t C )
         // printf("IN[%d] = %016llx%016llx, OUT[%d] = %016llx%016llx\n",
         //         i, IN[i].high, IN[i].low, i, OUT[i].high, OUT[i].low);
 
-        assert( expect.low  == OUT[i].low  );
-        assert( expect.high == OUT[i].high );
+        assert( expect.low  == actual128arr[i].low  );
+        assert( expect.high == actual128arr[i].high );
     }
     printf( "✅ bitsliced test passed for constant C\n" );
 }
@@ -816,6 +1049,73 @@ void test_16(){
 
 
 }
+
+
+
+
+int test_normal_nonbitsliced_matrix_constant_mul(void) {
+  srand(42);
+
+  __uint128_t cols[128];
+  fill_random_cols(cols);
+
+  // Build the NEON lookup tables
+  __uint128_t T[16][256];
+  build_byte_tables_from_cols(cols, T);
+
+  // Correctness: compare on many random vectors
+  const int N = 5000;
+  for (int i = 0; i < N; ++i) {
+    __uint128_t X = rand_u128();
+    __uint128_t y_ref  = mul_via_matrix_cols_scalar_simple(cols, X);
+    __uint128_t y_neon = mul_const_neon_bytes(T, X);
+    if (y_ref != y_neon) {
+      uint64_t ref_hi, ref_lo, neon_hi, neon_lo, x_hi, x_lo;
+      split_u128(y_ref,  &ref_hi,  &ref_lo);
+      split_u128(y_neon, &neon_hi, &neon_lo);
+      split_u128(X,      &x_hi,    &x_lo);
+      printf("Mismatch!\nX=%016llx%016llx\nref =%016llx%016llx\nyNEON=%016llx%016llx\n",
+             (unsigned long long)x_hi,   (unsigned long long)x_lo,
+             (unsigned long long)ref_hi, (unsigned long long)ref_lo,
+             (unsigned long long)neon_hi,(unsigned long long)neon_lo);
+      return 1;
+    }
+  }
+  printf("✅ Correctness check passed on %d random vectors.\n", N);
+
+  // Benchmark: scalar vs NEON over M trials
+  const int M = 200000;
+  struct timespec t0, t1;
+
+  __uint128_t sink = 0; // prevent dead-code elimination
+
+  clock_gettime(CLOCK_MONOTONIC, &t0);
+  for (int i = 0; i < M; ++i) {
+    __uint128_t X = rand_u128();
+    sink ^= mul_via_matrix_cols_scalar_simple(cols, X);
+  }
+  clock_gettime(CLOCK_MONOTONIC, &t1);
+  double ms_scalar = ms_since(t0, t1);
+
+  clock_gettime(CLOCK_MONOTONIC, &t0);
+  for (int i = 0; i < M; ++i) {
+    __uint128_t X = rand_u128();
+    sink ^= mul_const_neon_bytes(T, X);
+  }
+  clock_gettime(CLOCK_MONOTONIC, &t1);
+  double ms_neon = ms_since(t0, t1);
+
+  // Print something involving sink so compiler keeps the loops
+  uint64_t s_hi, s_lo; split_u128(sink, &s_hi, &s_lo);
+  printf("sink = %016llx%016llx\n", (unsigned long long)s_hi, (unsigned long long)s_lo);
+
+  printf("Scalar baseline:  %8.3f ms total  (%.3f ns/op)\n",
+         ms_scalar, (ms_scalar*1e6)/M);
+  printf("NEON lookup:      %8.3f ms total  (%.3f ns/op)\n",
+         ms_neon,   (ms_neon*1e6)/M);
+
+  return 0;
+}
 // Main function to test the implementation
 int main() {
 //    test_16();
@@ -835,8 +1135,10 @@ int main() {
     uint128_t C = { 0xFEDCBA9876543210ULL, 0x0123456789ABCDEFULL };
 
     //  Run the bitsliced self‐test:
-    srand(42);
-   test_bitsliced( C );
+//     srand(42);
+//    test_bitsliced( C );
+    // Run the nonbitsliced self‐test:
+    test_normal_nonbitsliced_matrix_constant_mul();
 
     return 0;
 }
